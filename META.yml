@@ -1,0 +1,64 @@
+---
+abstract: 'Translator for biological identifiers'
+author:
+  - 'Nat Goodman <natg@shore.net>'
+build_requires:
+  Carp: 0
+  Class::AutoClass: 1.53
+  Config: 0
+  Cwd: 3.26
+  DBI: 1.604
+  Exporter: 5.58
+  File::Basename: 0
+  File::Spec: 3.26
+  File::Spec::Functions: 3.26
+  FindBin: 0
+  Getopt::Long: 2.13
+  Graph: 0.91
+  Hash::AutoHash::Args: 1.11
+  List::MoreUtils: 0.09
+  List::Util: 1.14
+  Scalar::Util: 1.01
+  Storable: 2.16
+  TAP::Harness: 3.12
+  Test::Deep: 0.098
+  Test::More: 0.88
+  Text::Abbrev: 1.01
+configure_requires:
+  DBI: 1.604
+  Module::Build: 0.36
+generated_by: 'Module::Build version 0.3603'
+license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Data-Babel
+provides:
+  Data::Babel:
+    file: lib/Data/Babel.pm
+    version: 1.00_01
+  Data::Babel::Base:
+    file: lib/Data/Babel/Base.pm
+  Data::Babel::Config:
+    file: lib/Data/Babel/Config.pm
+  Data::Babel::IdType:
+    file: lib/Data/Babel/IdType.pm
+  Data::Babel::MapTable:
+    file: lib/Data/Babel/MapTable.pm
+  Data::Babel::Master:
+    file: lib/Data/Babel/Master.pm
+requires:
+  Carp: 0
+  Class::AutoClass: 1.53
+  Config::IniFiles: 2.57
+  DBI: 1.604
+  File::Basename: 0
+  File::Spec: 3.26
+  Graph: 0.91
+  Hash::AutoHash: 1.12
+  Hash::AutoHash::Args: 1.11
+  List::MoreUtils: 0.09
+  Template: 2.2
+resources:
+  license: http://dev.perl.org/licenses/
+version: 1.00_01

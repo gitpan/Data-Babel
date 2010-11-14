@@ -1,0 +1,132 @@
+########################################
+# 010.basics -- start fresh. create components & Babel. test.
+# don't worry about persistence. tested separately
+########################################
+use t::lib;
+use t::utilBabel;
+use Test::More;
+use Test::Deep;
+use File::Spec;
+use Class::AutoDB;
+use Data::Babel;
+use Data::Babel::Config;
+use strict;
+
+# create AutoDB database
+my $autodb=new Class::AutoDB(database=>'test',create=>1); 
+isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+my $name='test';
+
+# expect 'old' to return undef, because database is empty
+my $babel=old Data::Babel(name=>$name,autodb=>$autodb);
+ok(!$babel,'old on empty database returned undef');
+
+# create Babel directly from config files. this is is the usual case
+$babel=new Data::Babel
+  (name=>$name,
+   idtypes=>File::Spec->catfile(scriptpath,'handcrafted.idtype.ini'),
+   masters=>File::Spec->catfile(scriptpath,'handcrafted.master.ini'),
+   maptables=>File::Spec->catfile(scriptpath,'handcrafted.maptable.ini'));
+isa_ok($babel,'Data::Babel','Babel created from config files');
+
+# test simple attributes
+is($babel->name,$name,'Babel attribute: name');
+is($babel->id,"babel:$name",'Babel attribute: id');
+is($babel->autodb,$autodb,'Babel attribute: autodb');
+#is($babel->log,$log,'Babel attribute: log');
+# test component-object attributes
+check_handcrafted_idtypes($babel->idtypes,'mature','Babel attribute: idtypes');
+check_handcrafted_masters($babel->masters,'mature','Babel attribute: masters');
+check_handcrafted_maptables($babel->maptables,'mature','Babel attribute: maptables');
+
+# next create Babel from component objects. 
+# first, extract components from existing Babel. 
+#   do it this way, rather than re-reading config files, to preserve MapTable names
+my($idtypes,$masters,$maptables)=$babel->get qw(idtypes masters maptables);
+@$masters=grep {$_->explicit} @$masters; # remove implicit Masters, since Babel makes them
+
+# check component objects
+check_handcrafted_idtypes($idtypes);
+check_handcrafted_masters($masters);
+check_handcrafted_maptables($maptables);
+
+# create Babel using existing component objects
+$babel=new Data::Babel
+  (name=>$name,idtypes=>$idtypes,masters=>$masters,maptables=>$maptables);
+isa_ok($babel,'Data::Babel','Babel created from component objects');
+
+# test simple attributes
+is($babel->name,$name,'Babel attribute: name');
+is($babel->id,"babel:$name",'Babel attribute: id');
+is($babel->autodb,$autodb,'Babel attribute: autodb');
+#is($babel->log,$log,'Babel attribute: log');
+# test component-object attributes
+check_handcrafted_idtypes($babel->idtypes,'mature','Babel attribute: idtypes');
+check_handcrafted_masters($babel->masters,'mature','Babel attribute: masters');
+check_handcrafted_maptables($babel->maptables,'mature','Babel attribute: maptables');
+
+# show: just make sure it prints something..
+# redirect STDOUT to a string. adapted from perlfunc
+my $showout;
+open my $oldout,">&STDOUT" or fail("show: can't dup STDOUT: $!");
+close STDOUT;
+open STDOUT, '>',\$showout or fail("show: can't redirect STDOUT to string: $!");
+$babel->show;
+close STDOUT;
+open STDOUT,">&",$oldout or fail("show: can't restore STDOUT: $!");
+ok(length($showout)>500,'show');
+
+# check_schema: should be true.
+my @errstrs=$babel->check_schema;
+ok(!@errstrs,'check_schema array context');
+ok(scalar($babel->check_schema),'check_schema boolean context');
+
+# test name2xxx & related methods
+check_handcrafted_name2idtype($babel);
+check_handcrafted_name2master($babel);
+check_handcrafted_name2maptable($babel);
+check_handcrafted_id2object($babel);
+check_handcrafted_id2name($babel);
+
+# basic translate test. much more in later tests
+my $data=new Data::Babel::Config
+  (file=>File::Spec->catfile(scriptpath,'handcrafted.data.ini'))->autohash;
+load_handcrafted_maptables($babel,$data);
+load_handcrafted_masters($babel,$data);
+# load_ur($babel,'ur');
+my $correct=prep_tabledata($data->basics->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate');
+
+# NG 10-11-08: test limit
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   output_idtypes=>[qw(type_002 type_003 type_004)],
+   limit=>1);
+cmp_table($actual,$correct,'translate with limit',undef,undef,1);
+
+# make schema bad in all possible ways: cyclic, disconnected, uncovered IdType
+use Data::Babel::MapTable;
+my $cyclic_maptable=new Data::Babel::MapTable(name=>'cyclic',idtypes=>'type_004 type_001');
+my @isolated_idtypes=
+  (new Data::Babel::IdType(name=>'isolated_1'),new Data::Babel::IdType(name=>'isolated_2'));
+my $isolated_maptable=new Data::Babel::MapTable
+  (name=>'isolated',idtypes=>'isolated_1 isolated_2');
+my $uncovered_idtype=new Data::Babel::IdType(name=>'uncovered');
+
+my $bad=new Data::Babel
+  (name=>'bad',
+   idtypes=>[@$idtypes,@isolated_idtypes,$uncovered_idtype],masters=>$masters,
+   maptables=>[@$maptables,$cyclic_maptable,$isolated_maptable]);
+
+my @errstrs=$bad->check_schema;
+ok((@errstrs==3 && 
+   grep(/not connected/,@errstrs) && 
+   grep(/cyclic/,@errstrs) &&
+   grep(/IdTypes not contained/,@errstrs)),
+   'check_schema array context: really bad schema');
+ok(!$bad->check_schema,'check_schema boolean context:  really bad schema');
+
+done_testing();
