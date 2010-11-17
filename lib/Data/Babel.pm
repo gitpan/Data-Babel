@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.00_01';
+our $VERSION='1.00_02';
 #################################################################################
 #
 # Author:  Nat Goodman
@@ -566,7 +566,7 @@ MapTable
 
 This excerpt has two MapTable definitions which illustrate two ways
 that MapTables can be named.  The first uses a normal section name;
-the second invokes a Template Toolkit macro which generates unique
+the second invokes a L<Template Toolkit|Template> macro which generates unique
 names of the form 'maptable_001'.  This is very convenient because
 Babel databases typically contain a large number of MapTables, and
 it's hard to come up with good names for most of them.  In any case,

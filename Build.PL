@@ -41,6 +41,7 @@ my $builder = $class->new
 		       },
    requires =>         {'Carp' => 0,
 			'Class::AutoClass' => 1.53,
+			'Class::AutoDB' => 1.20,
 			'Config::IniFiles' => 2.57,
 			'DBI' => 1.604,
 			'File::Basename' => 0,

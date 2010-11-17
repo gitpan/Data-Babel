@@ -36,7 +36,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.00_01
+    version: 1.00_02
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
   Data::Babel::Config:
@@ -50,6 +50,7 @@ provides:
 requires:
   Carp: 0
   Class::AutoClass: 1.53
+  Class::AutoDB: 1.2
   Config::IniFiles: 2.57
   DBI: 1.604
   File::Basename: 0
@@ -61,4 +62,4 @@ requires:
   Template: 2.2
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.00_01
+version: 1.00_02
