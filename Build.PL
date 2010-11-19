@@ -16,6 +16,7 @@ my $builder = $class->new
    dist_author         => q{Nat Goodman <natg@shore.net>},
    dist_version_from   => 'lib/Data/Babel.pm',
    configure_requires=>{'DBI' => 1.604,
+			'Module::Build' => 0.3601,
 		       },
    build_requires =>   {'Carp' => 0,
 			'Class::AutoClass' => 1.53,
@@ -67,14 +68,16 @@ my $builder = $class->new
 
 my $ok=1;
 
+# NG 10-11-19: words below about views needed for Babel, not AutoDB
 my $mysql_errstr=chk_mysql() and $ok=0;
 print <<EOS
 These tests require that DBD::mysql version 4.007 or higher be
-installed, that MySQL be running on 'localhost', that the user
-running the tests can access MySQL without a password, and with these
+installed, that MySQL be running on 'localhost', that the user running
+the tests can access MySQL without a password, and with these
 credentials, has sufficient privileges to (1) create a 'test'
 database, (2) create, alter, and drop tables in the 'test' database,
-and (3) run queries and updates on the database.
+(3) create and drop views, and (4) run queries and updates on the
+database.
 
 When verifying these capabilities, the test driver got the following
 error message:
@@ -111,15 +114,25 @@ sub chk_mysql {
 
   # make sure we can do all necessary operations
   # create, alter, drop tables. insert, select, replace, update, select, delete
-  $dbh->do(qq(CREATE TABLE IF NOT EXISTS test(xxx INT))) or return $dbh->errstr;
-  $dbh->do(qq(ALTER TABLE test ADD COLUMN yyy INT)) or return $dbh->errstr;
+  # NG 10-11-19: ops on views needed for Babel, not AutoDB
+  # NG 10-11-19: DROP tables and views if they exist
+  $dbh->do(qq(DROP TABLE IF EXISTS test_table)) or return $dbh->errstr;
+  $dbh->do(qq(DROP VIEW IF EXISTS test_table)) or return $dbh->errstr;
+  $dbh->do(qq(DROP TABLE IF EXISTS test_view)) or return $dbh->errstr;
+  $dbh->do(qq(DROP VIEW IF EXISTS test_view)) or return $dbh->errstr;
+
+  $dbh->do(qq(CREATE TABLE test_table(xxx INT))) or return $dbh->errstr;
+  $dbh->do(qq(ALTER TABLE test_table ADD COLUMN yyy INT)) or return $dbh->errstr;
+  $dbh->do(qq(CREATE VIEW test_view AS SELECT * from test_table)) or return $dbh->errstr;
   # do drop at end, since we need table here
-  $dbh->do(qq(INSERT INTO test(xxx) VALUES(123))) or return $dbh->errstr;
-  $dbh->do(qq(SELECT * FROM test)) or return $dbh->errstr;
-  $dbh->do(qq(REPLACE INTO test(xxx) VALUES(456))) or return $dbh->errstr;
-  $dbh->do(qq(UPDATE test SET yyy=789 WHERE xxx=123)) or return $dbh->errstr;
-  $dbh->do(qq(DELETE FROM test WHERE xxx=123)) or return $dbh->errstr;
-  $dbh->do(qq(DROP TABLE IF EXISTS test)) or return $dbh->errstr;
+  $dbh->do(qq(INSERT INTO test_table(xxx) VALUES(123))) or return $dbh->errstr;
+  $dbh->do(qq(SELECT * FROM test_table)) or return $dbh->errstr;
+  $dbh->do(qq(SELECT * FROM test_view)) or return $dbh->errstr;
+  $dbh->do(qq(REPLACE INTO test_table(xxx) VALUES(456))) or return $dbh->errstr;
+  $dbh->do(qq(UPDATE test_table SET yyy=789 WHERE xxx=123)) or return $dbh->errstr;
+  $dbh->do(qq(DELETE FROM test_table WHERE xxx=123)) or return $dbh->errstr;
+  $dbh->do(qq(DROP VIEW IF EXISTS test_view)) or return $dbh->errstr;
+  $dbh->do(qq(DROP TABLE IF EXISTS test_table)) or return $dbh->errstr;
   # since we made it here, we can do everything!
   undef;
 }

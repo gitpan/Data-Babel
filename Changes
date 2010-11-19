@@ -3,9 +3,14 @@ Revision history for Data-Babel
 1.00    2010-11-xx
         First CPAN version, released on an unsuspecting world.
 
+1.00_03 2010-11-19
+	Added Module::Build to build_requires
+	Added view operations to chk_mysql in Build.PL on the theory that FAILs 
+	  are due to inability to create views
+
 1.00_02 2010-11-16
 	Fixed typo in POD
-	Add Class::AutoDB as prereq
+	Added Class::AutoDB to requires
 
 0.90    2010-08-22
         First version, released for internal use.
