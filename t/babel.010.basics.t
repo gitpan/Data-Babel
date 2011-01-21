@@ -99,6 +99,12 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'translate');
+# NG 11-10-21: added translate all
+my $correct=prep_tabledata($data->basics_all->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids_all=>1,
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate all');
 
 # NG 10-11-08: test limit
 my $actual=$babel->translate

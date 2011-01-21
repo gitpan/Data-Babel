@@ -46,6 +46,13 @@ my $table=$babel->translate
 for my $row (@$table) {
   print "Entrez gene=$row->[0]\tsymbol=$row->[1]\tEnsembl gene=$row->[2]\n";
 }
+# generate a table mapping all Entrez Gene ids to UniProt ids
+my $table=$babel->translate
+  (input_idtype=>'gene_entrez',
+   input_ids_all=>1,
+   output_idtypes=>[qw(protein_uniprot)]);
+# convert to hash for easy programmatic lookups
+my %gene2uniprot=map {$_[0]=>$_[1]} @$table;
 
 SKIP1:
 my $name='test';
@@ -89,6 +96,11 @@ $table=$babel->translate
    input_ids=>[1,2,3],
    output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
    limit=>100);
+$table=$babel->translate
+  (input_idtype=>'gene_entrez',
+   input_ids_all=>1,
+   output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
+   limit=>100000);
 SKIP2:
 
 # show: just make sure it prints something..

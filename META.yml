@@ -36,7 +36,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.00
+    version: 1.01_01
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
   Data::Babel::Config:
@@ -62,4 +62,4 @@ requires:
   Template: 2.2
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.00
+version: 1.01_01

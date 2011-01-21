@@ -61,11 +61,18 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'sanity test - basic translate');
+# NG 11-10-21: added translate all
+my $correct=prep_tabledata($data->basics_all->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids_all=>1,
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'sanity test - basic translate all');
 
 # now the real tests begin.
 # for every input do 0-4+ outputs
 #   for each case, test 1 input that matches nothing, then test 1-all input ids
 #     NG 10-11-08: for each case, test w/o limit and with limits of 0,1,2
+#     NG 11-01-21: for each case, test input_ids_all
 # for some cases, outputs will contain input
 # with >4 outputs, some guaranteed to be duplicates
 my @idtypes=qw(type_001 type_002 type_003 type_004);
@@ -100,7 +107,8 @@ sub doit_all {
   my($input,@outputs)=@_;
   my $ok=1;
   $ok&&=doit($input,['none'],\@outputs,__FILE__,__LINE__) or return 0;
-  for my $i (0..$#ids) {
+  $ok&&=doit($input,'all',\@outputs,__FILE__,__LINE__) or return 0;
+ for my $i (0..$#ids) {
     $ok&&=doit($input,[0..$i],\@outputs,__FILE__,__LINE__) or return 0;
   }
   report_pass($ok,"input=$input, outputs=".join(',',@outputs));
@@ -110,25 +118,33 @@ sub doit_all {
 sub doit {
   my($input,$ids,$outputs,$file,$line)=@_;
   my $input_idtype=$idtypes[$input];
-  my $input_ids=[map {/\D/? $_: $input_idtype.'/a_'.$ids[$_]} @$ids];
   my $output_idtypes=[@idtypes[@$outputs]];
-
   my $ok=1;
-  my $correct=select_ur
-    (babel=>$babel,
-     input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
-  my $actual=$babel->translate
-    (input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
-  my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes";
-  $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
-
-  # NG 10-11-08: now test with limits of 0,1,2
-  for my $limit (0,1,2) {
+  if (ref $ids) {		# usual case: list of ids
+    my $input_ids=[map {/\D/? $_: $input_idtype.'/a_'.$ids[$_]} @$ids];
+    my $correct=select_ur
+      (babel=>$babel,
+       input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
     my $actual=$babel->translate
-      (input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes,
-       limit=>$limit);
-    my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes, limit=$limit";
-    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line,$limit) or return 0;
+      (input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes";
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    # NG 10-11-08: test with limits of 0,1,2
+    for my $limit (0,1,2) {
+      my $actual=$babel->translate
+	(input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes,
+	 limit=>$limit);
+      my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes, limit=$limit";
+      $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line,$limit) or return 0;
+    }
+  } else {			# NG 11-01-21: test input_ids_all
+    my $correct=select_ur
+      (babel=>$babel,
+       input_idtype=>$input_idtype,input_ids_all=>1,output_idtypes=>$output_idtypes);
+    my $actual=$babel->translate
+      (input_idtype=>$input_idtype,input_ids_all=>1,output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, input_ids_all, output_idtypes=@$output_idtypes";
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
   }
   $ok;
 }

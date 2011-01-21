@@ -133,7 +133,7 @@ my $actual=$babel->translate
    input_ids=>[qw(type_1/does_not_exist type_1/0 type_1/1 type_1/12 type_1/122 type_1/1223)],
    output_idtypes=>[qw(type_2 type_3)]);
 cmp_table($actual,$correct,
-	  'translate alls ids. outputs=2,3');
+	  'translate all ids (explicit values). outputs=2,3');
 
 my $correct=[[qw(type_1/1223 type_3/1223)]];
 my $actual=$babel->translate
@@ -141,6 +141,31 @@ my $actual=$babel->translate
    input_ids=>[qw(type_1/does_not_exist type_1/0 type_1/1 type_1/12 type_1/122 type_1/1223)],
    output_idtypes=>[qw(type_3)]);
 cmp_table($actual,$correct,
-	  'translate alls ids. outputs=3');
+	  'translate all ids (explicit values). outputs=3');
+
+# NG 11-10-21: added translate all
+# only a few cases worth testing.
+load_ur($babel,'ur');
+
+my $output_idtypes=[qw(type_2)];
+my $correct=select_ur
+  (babel=>$babel,input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
+my $actual=$babel->translate
+  (input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all. outputs=2');
+
+my $output_idtypes=[qw(type_3)];
+my $correct=select_ur
+  (babel=>$babel,input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
+my $actual=$babel->translate
+  (input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all. outputs=3');
+
+my $output_idtypes=[qw(type_2 type_3)];
+my $correct=select_ur
+  (babel=>$babel,input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
+my $actual=$babel->translate
+  (input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all. outputs=2,3');
 
 done_testing();

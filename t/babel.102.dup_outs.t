@@ -51,6 +51,12 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'sanity test - basic translate');
+# NG 11-10-21: added translate all
+my $correct=prep_tabledata($data->basics_all->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids_all=>1,
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'sanity test - basic translate all');
 
 # test ur selection with duplicate outputs
 my $correct=prep_tabledata($data->ur_dup_outputs->data);
@@ -64,6 +70,12 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
 cmp_table($actual,$correct,'translate with duplicate outputs');
+# NG 11-10-21: added translate all
+my $correct=prep_tabledata($data->translate_dup_outputs_all->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids_all=>1,
+   output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
+cmp_table($actual,$correct,'translate all with duplicate outputs');
 
 cleanup_ur($babel);		# clean up intermediate files
 done_testing();

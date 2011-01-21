@@ -1,5 +1,10 @@
 Revision history for Data-Babel
 
+1.01    2011-01-22
+        Added 'translate all' (more precisely, the input_ids_all option to
+	  translate) to generate a complete mapping of the input type to the
+          output types.
+
 1.00    2010-11-29
         First CPAN version, released on an unsuspecting world.
 

@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.00';
+our $VERSION='1.01_01';
 #################################################################################
 #
 # Author:  Nat Goodman
@@ -107,9 +107,16 @@ sub id2object {shift->_name2object(split(':',$_[0]));} # used to translate nodes
 # sub id2name {shift; split(':',$_[0]); pop(@_)}
 sub id2name {shift; my @x=split(':',$_[0]); pop(@x)}
 
+# NG 11-01-21: added 'translate all'. ie, input_ids_all arg
 sub translate { 
   my $self=shift;
   my $args=new Hash::AutoHash::Args(@_);
+  # NG 11-01-21: do arg checking here
+  my $missing_args=join(', ',grep {!$args->$_} qw(input_idtype output_idtypes));
+  confess "Required argument(s) $missing_args missing" if $missing_args;
+  my $ids_args=grep {$args->$_} qw(input_ids input_ids_all);
+  confess "At least one of input_ids or input_ids_all must be set" if $ids_args==0;
+  confess "At most one of input_ids or input_ids_all may be set" if $ids_args>1;
   my $sql=$self->generate_query($args);
   my $dbh=$args->dbh || $self->autodb->dbh;
   my $results=$dbh->selectall_arrayref($sql);
@@ -149,18 +156,24 @@ sub generate_query {
   #              matches almost everything
   # my @input_ids=@{$args->input_ids};
   # @input_ids=map {$dbh->quote($_)} @input_ids if grep /\D/,@input_ids;
-  my @input_ids=map {$dbh->quote($_)} @{$args->input_ids};
-  my $in_list_sql='('.join(', ',@input_ids).')'; 
-  # NG 10-11-08: support limit. based on DM's change
-  my $limit=$args->limit;
-  confess "Invalid limit: $limit" if defined $limit && $limit=~/\D/;
-  my $sql="SELECT DISTINCT $columns_sql FROM $join_sql WHERE $input_name IN $in_list_sql";
+  # NG 11-01-21: add 'translate all'
+  my @conds;			# WHERE clauses
+  if ($args->input_ids) {
+    my @input_ids=map {$dbh->quote($_)} @{$args->input_ids};
+    my $in_list_sql='('.join(', ',@input_ids).')'; 
+    push(@conds," $input_name IN $in_list_sql");
+  }
   # NG 10-11-10: skip rows whose output columns are all NULL
   if (@idtypes>1)  {
     my @output_idtypes=@idtypes[1..$#idtypes]; # input idtype is always 0th
     my $sql_not_null=join(' OR ',map {$_->name.' IS NOT NULL'} @output_idtypes);
-    $sql.=" AND ($sql_not_null)";
+    push(@conds,"($sql_not_null)");
   }
+  my $sql="SELECT DISTINCT $columns_sql FROM $join_sql";
+  $sql.=' WHERE '.join(' AND ',@conds) if @conds;
+  # NG 10-11-08: support limit. based on DM's change
+  my $limit=$args->limit;
+  confess "Invalid limit: $limit" if defined $limit && $limit=~/\D/;
   $sql.=" LIMIT $limit" if defined $limit;
   $sql;
 }
@@ -381,7 +394,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.00
+Version 1.01
 
 =head1 SYNOPSIS
 
@@ -410,7 +423,8 @@ Version 1.00
   # CAUTION: rest of SYNOPSIS assumes you've loaded the real database somehow
   my $table=$babel->translate
     (dbh=>$dbh,
-     input_idtype=>'gene_entrez',input_ids=>[1,2,3],
+     input_idtype=>'gene_entrez',
+     input_ids=>[1,2,3],
      output_idtypes=>[qw(gene_symbol gene_ensembl
                          transcript_refseq transcript_ensembl
                          chip_affy probe_affy chip_lumi probe_lumi)]);
@@ -418,6 +432,13 @@ Version 1.00
   for my $row (@$table) {
     print "Entrez gene=$row->[0]\tsymbol=$row->[1]\tEnsembl gene=$row->[2]\n";
   }
+  # generate a table mapping all Entrez Gene ids to UniProt ids
+  my $table=$babel->translate
+    (input_idtype=>'gene_entrez',
+     input_ids_all=>1,
+     output_idtypes=>[qw(protein_uniprot)]);
+  # convert to HASH for easy programmatic lookups
+  my %gene2uniprot=map {$_[0]=>$_[1]} @$table;
 
 =head1 DESCRIPTION
 
@@ -429,7 +450,12 @@ identifier types, and may provide the same or different mappings over
 the shared types.
 
 The principal method is 'translate' which converts identifiers of one
-type into identifiers of one or more output types.
+type into identifiers of one or more output types.  In typical usage,
+you call 'translate' with a list of input ids to convert.  You can
+also call it without any input ids (and with the special option
+'input_ids_all' set) to generate a complete mapping of the input type
+to the output types.  This is convenient if you want to hang onto the
+mapping for repeated use.
 
 CAVEAT: Some features of Data::Babel are overly specific to the
 procedure we use to construct the underlying Babel database.  We note
@@ -610,12 +636,12 @@ from ones that exist but don't connect.
 
 =head2 Technical details
 
-A basic Babel property is that it provides a unique mapping over its
-IdTypes.  Here is what this means.  Suppose we translate an input
-type T0 to output types T1, T2, ..., Tn.  If we add some additional
-output types and re-translate, we get the same answer for the original
-types.  And, if we remove some output types, we get the same answer
-for the ones that remain.
+A basic Babel property is that translations are stable. You can add
+output types to a query without changing the answer for the types
+you had before, you can remove output types from the query without
+changing the answer for the ones that remain, and if you "reverse
+direction" and swap the input type with one of the outputs, you get
+everything that was in the original answer.
 
 We accomplish this by requiring that the database of MapTables satisfy
 the B<universal relation property> (a well-known concept in relational
@@ -628,7 +654,9 @@ output IdTypes. Left outer joins suffice, because 'translate' starts
 with the Master.
 
 We further require that the database of MapTables be
-non-redundant. This means that the MapTables form a tree schema
+non-redundant. The basic idea is that a given IdType may not be
+present in multiple MapTables, unless it is being used as join column.
+More technically, we require that the MapTables form a tree schema
 (another well-known concept in relational database theory), and any
 pair of MapTables have at most one IdType in common.  As a
 consequence, there is essentially a single path between any pair of
@@ -717,12 +745,23 @@ The available class attributes are
                       input_ids=>[1,2,3],
                       output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
                       limit=>100)
+           -- OR --
+           $table=$babel->translate
+                     (input_idtype=>'gene_entrez',
+                      input_ids_all=>1,
+                      output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
+                      limit=>100000)
  Function: Translate the input ids into ids of the output types
  Returns : table represented as an ARRAY of ARRAYS. Each inner ARRAY is one row
            of the result; the first element of each is an input id, the rest are
            outputs in the same order as output_idtypes
  Args    : input_idtype   name of Data::Babel::IdType object or object
-           input_ids      ARRAY of ids to be translated
+           input_ids      ARRAY of ids to be translated.  It is an error to set
+                          both input_ids and input_ids_all.
+           input_ids_all  If true, all ids of the input type are translated. We
+                          recommend that 1 be used as the true value. See Notes 
+                          below. It is an error to set both input_ids and
+                          input_ids_all. 
            output_idtypes ARRAY of names of Data::Babel::IdType objects or
                           objects
            limit          maximum number of rows to retrieve (optional)
@@ -731,6 +770,9 @@ The available class attributes are
            If no output idtypes are specified, returns rows for which the input
            id exists in the corresponding Master table.
            The order of output rows is arbitrary.
+           At present, input_ids_all may be set to any true value but in future,
+           we may interpret the value differently. 
+           It is an error to set both input_ids and input_ids_all. 
 
 =head2 show
 

@@ -1,5 +1,6 @@
 package t::utilBabel;
 use t::util;
+use Carp;
 use Test::More;
 use Test::Deep;
 use List::MoreUtils qw(uniq);
@@ -159,11 +160,13 @@ sub load_ur {
   }
   $left;
 }
+# NG 11-01-21: added 'translate all'
 # select data from ur (will actually work for any table)
 sub select_ur {
   my $args=new Hash::AutoHash::Args(@_);
-  my($babel,$urname,$input_idtype,$input_ids,$output_idtypes)=
-    @$args{qw(babel urname input_idtype input_ids output_idtypes)};
+  my($babel,$urname,$input_idtype,$input_ids,$input_ids_all,$output_idtypes)=
+    @$args{qw(babel urname input_idtype input_ids input_ids_all output_idtypes)};
+  confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
   $urname or $urname=$args->tablename || 'ur'; 
   my($input_idtype,@output_idtypes)=map {ref $_? $_->name: $_} ($input_idtype,@$output_idtypes);
 
@@ -187,7 +190,13 @@ sub select_ur {
     }
     $result=\@result;
   }
-
+  # NG 11-01-21: if input_ids_all set, exclude rows where input_idtype is NULL
+  #   (the check for $input_idtype is for consistency with loop above. I don't know
+  #    whether it's possible for input_ids_all to be set w/o input_idtype being set)
+  if ($input_idtype && $input_ids_all) {
+    my @result=grep {defined $_->[0]} @$result;
+    $result=\@result;
+  }
   $result;
 }
 # cmp ARRAYs of Babel component objects (anything with an 'id' method will work)

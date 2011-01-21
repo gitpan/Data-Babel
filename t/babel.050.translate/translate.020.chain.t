@@ -129,6 +129,15 @@ sub doit {
 #   unless (@$correct && cmp_table($actual,$correct,$label,$file,$line)) {
 #     print "break here\n";
 #   }
+  # NG 11-01-21: added 'translate all'
+  my $correct=select_ur
+    (babel=>$babel,
+     input_idtype=>$input_idtype,input_ids_all=>1,output_idtypes=>$output_idtypes);
+  my $actual=$babel->translate
+    (input_idtype=>$input_idtype,input_ids_all=>1,output_idtypes=>$output_idtypes);
+  $label.=', input_ids_all';
+  report_fail(scalar @$correct,"BAD NEWS: \$correct empty. $label",$file,$line); 
+  cmp_table_quietly($actual,$correct,$label,$file,$line);
 }
 
 # arg is maptable number
