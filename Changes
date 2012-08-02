@@ -1,5 +1,8 @@
 Revision history for Data-Babel
 
+1.02    2012-08-02
+        Changed tests to correct deprecated use of qw(...) as parentheses
+
 1.01    2011-01-22
         Added 'translate all' (more precisely, the input_ids_all option to
 	  translate) to generate a complete mapping of the input type to the

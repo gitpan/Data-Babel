@@ -57,3 +57,4 @@ t/runtests.pm
 t/tap.pm
 t/util.pm
 t/utilBabel.pm
+META.json

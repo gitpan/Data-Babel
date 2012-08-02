@@ -1,0 +1,98 @@
+{
+   "abstract" : "Translator for biological identifiers",
+   "author" : [
+      "Nat Goodman <natg@shore.net>"
+   ],
+   "dynamic_config" : 1,
+   "generated_by" : "Module::Build version 0.4, CPAN::Meta::Converter version 2.112150",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Data-Babel",
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "Carp" : 0,
+            "Class::AutoClass" : "1.53",
+            "Config" : 0,
+            "Cwd" : "3.26",
+            "DBI" : "1.604",
+            "Exporter" : "5.58",
+            "File::Basename" : 0,
+            "File::Spec" : "3.26",
+            "File::Spec::Functions" : "3.26",
+            "FindBin" : 0,
+            "Getopt::Long" : "2.13",
+            "Graph" : "0.91",
+            "Hash::AutoHash::Args" : "1.11",
+            "List::MoreUtils" : "0.09",
+            "List::Util" : "1.14",
+            "Scalar::Util" : "1.01",
+            "Storable" : "2.16",
+            "TAP::Harness" : "3.12",
+            "Test::Deep" : "0.098",
+            "Test::More" : "0.88",
+            "Text::Abbrev" : "1.01"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "DBI" : "1.604",
+            "Module::Build" : "0.3601"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Carp" : 0,
+            "Class::AutoClass" : "1.53",
+            "Class::AutoDB" : "1.2",
+            "Config::IniFiles" : "2.57",
+            "DBI" : "1.604",
+            "File::Basename" : 0,
+            "File::Spec" : "3.26",
+            "Graph" : "0.91",
+            "Hash::AutoHash" : "1.12",
+            "Hash::AutoHash::Args" : "1.11",
+            "List::MoreUtils" : "0.09",
+            "Template" : "2.2"
+         }
+      }
+   },
+   "provides" : {
+      "Data::Babel" : {
+         "file" : "lib/Data/Babel.pm",
+         "version" : "1.02"
+      },
+      "Data::Babel::Base" : {
+         "file" : "lib/Data/Babel/Base.pm",
+         "version" : 0
+      },
+      "Data::Babel::Config" : {
+         "file" : "lib/Data/Babel/Config.pm",
+         "version" : 0
+      },
+      "Data::Babel::IdType" : {
+         "file" : "lib/Data/Babel/IdType.pm",
+         "version" : 0
+      },
+      "Data::Babel::MapTable" : {
+         "file" : "lib/Data/Babel/MapTable.pm",
+         "version" : 0
+      },
+      "Data::Babel::Master" : {
+         "file" : "lib/Data/Babel/Master.pm",
+         "version" : 0
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "license" : [
+         "http://dev.perl.org/licenses/"
+      ]
+   },
+   "version" : "1.02"
+}

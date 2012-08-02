@@ -56,9 +56,9 @@ my %gene2uniprot=map {$_[0]=>$_[1]} @$table;
 
 SKIP1:
 my $name='test';
-my $idtypes=File::Spec->catfile qw(examples idtype.ini);
-my $masters=File::Spec->catfile qw(examples master.ini);
-my $maptables=File::Spec->catfile qw(examples maptable.ini);
+my $idtypes=File::Spec->catfile(qw(examples idtype.ini));
+my $masters=File::Spec->catfile(qw(examples master.ini));
+my $maptables=File::Spec->catfile(qw(examples maptable.ini));
 $Template::Context::maptable_counter=0; # real crock to reset maptable counter
 
 ####################

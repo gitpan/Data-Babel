@@ -475,18 +475,18 @@ sub check_handcrafted_id2name {
 
 sub load_handcrafted_maptables {
   my($babel,$data)=@_;
-  for my $name qw(maptable_001 maptable_002 maptable_003) {
+  for my $name (qw(maptable_001 maptable_002 maptable_003)) {
     load_maptable($babel,$name,$data->$name->data);
   }
 }
 sub load_handcrafted_masters {
   my($babel,$data)=@_;
   # explicit masters
-  for my $name qw(type_001_master type_002_master) {
+  for my $name (qw(type_001_master type_002_master)) {
     load_master($babel,$name,$data->$name->data);
   }
   # implicit masters have no data
-  for my $name qw(type_003_master type_004_master) {
+  for my $name (qw(type_003_master type_004_master)) {
     load_master($babel,$name);
   }
 }

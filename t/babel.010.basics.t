@@ -42,7 +42,7 @@ check_handcrafted_maptables($babel->maptables,'mature','Babel attribute: maptabl
 # next create Babel from component objects. 
 # first, extract components from existing Babel. 
 #   do it this way, rather than re-reading config files, to preserve MapTable names
-my($idtypes,$masters,$maptables)=$babel->get qw(idtypes masters maptables);
+my($idtypes,$masters,$maptables)=$babel->get(qw(idtypes masters maptables));
 @$masters=grep {$_->explicit} @$masters; # remove implicit Masters, since Babel makes them
 
 # check component objects

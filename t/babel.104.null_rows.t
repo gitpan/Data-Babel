@@ -45,13 +45,13 @@ isa_ok($babel,'Data::Babel','sanity test - $babel');
 # setup the database
 my $data=new Data::Babel::Config
   (file=>File::Spec->catfile($confpath,scriptcode.'.data.ini'))->autohash;
-for my $name qw(maptable_12 maptable_23) {
+for my $name(qw(maptable_12 maptable_23)) {
   load_maptable($babel,$name,$data->$name->data);
 }
 # explicit master: type_1
 load_master($babel,'type_1_master',$data->type_1_master->data);
 # implicit masters (no data): type_2, type3
-for my $name qw(type_2 type_3) {
+for my $name(qw(type_2 type_3)) {
   load_master($babel,$name.'_master');
 }
 

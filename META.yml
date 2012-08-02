@@ -27,7 +27,8 @@ build_requires:
 configure_requires:
   DBI: 1.604
   Module::Build: 0.3601
-generated_by: 'Module::Build version 0.3603'
+dynamic_config: 1
+generated_by: 'Module::Build version 0.4, CPAN::Meta::Converter version 2.112150'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -36,17 +37,22 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.01
+    version: 1.02
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
+    version: 0
   Data::Babel::Config:
     file: lib/Data/Babel/Config.pm
+    version: 0
   Data::Babel::IdType:
     file: lib/Data/Babel/IdType.pm
+    version: 0
   Data::Babel::MapTable:
     file: lib/Data/Babel/MapTable.pm
+    version: 0
   Data::Babel::Master:
     file: lib/Data/Babel/Master.pm
+    version: 0
 requires:
   Carp: 0
   Class::AutoClass: 1.53
@@ -62,4 +68,4 @@ requires:
   Template: 2.2
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.01
+version: 1.02
