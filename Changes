@@ -1,5 +1,9 @@
 Revision history for Data-Babel
 
+1.03    2012-08-21
+	Added test for version number in POD
+	Removed redundant 'dist_version_from' param from Build.PL
+
 1.02    2012-08-02
         Changed tests to correct deprecated use of qw(...) as parentheses
 

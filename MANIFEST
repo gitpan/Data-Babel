@@ -14,6 +14,7 @@ lib/Data/Babel/MapTable.pm
 lib/Data/Babel/Master.pm
 Makefile.PL
 MANIFEST
+META.json
 META.yml
 README
 t/babel.000.code_exists.t
@@ -57,4 +58,3 @@ t/runtests.pm
 t/tap.pm
 t/util.pm
 t/utilBabel.pm
-META.json

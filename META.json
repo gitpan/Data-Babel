@@ -42,7 +42,7 @@
       "configure" : {
          "requires" : {
             "DBI" : "1.604",
-            "Module::Build" : "0.3601"
+            "Module::Build" : "0.4"
          }
       },
       "runtime" : {
@@ -65,7 +65,7 @@
    "provides" : {
       "Data::Babel" : {
          "file" : "lib/Data/Babel.pm",
-         "version" : "1.02"
+         "version" : "1.03"
       },
       "Data::Babel::Base" : {
          "file" : "lib/Data/Babel/Base.pm",
@@ -94,5 +94,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.02"
+   "version" : "1.03"
 }

@@ -26,7 +26,7 @@ build_requires:
   Text::Abbrev: 1.01
 configure_requires:
   DBI: 1.604
-  Module::Build: 0.3601
+  Module::Build: 0.4
 dynamic_config: 1
 generated_by: 'Module::Build version 0.4, CPAN::Meta::Converter version 2.112150'
 license: perl
@@ -37,7 +37,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.02
+    version: 1.03
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -68,4 +68,4 @@ requires:
   Template: 2.2
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.02
+version: 1.03
