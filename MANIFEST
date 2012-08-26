@@ -30,11 +30,13 @@ t/babel.020.persist/persist.010.new.t
 t/babel.020.persist/persist.020.old.t
 t/babel.020.persist/persist.030.reread.t
 t/babel.040.translate_hand.t
+t/babel.042.filter_hand.t
 t/babel.050.translate.t
 t/babel.050.translate/translate.010.star.t
 t/babel.050.translate/translate.020.chain.t
 t/babel.050.translate/translate.030.tree.t
-t/babel.098.examples.pl
+t/babel.060.filter.t
+t/babel.098.examples.t
 t/babel.099.docs.t
 t/babel.100.no_autodb.t
 t/babel.101.headloc.t
@@ -46,6 +48,7 @@ t/babel.104.null_rows/null_rows.idtype.ini
 t/babel.104.null_rows/null_rows.maptable.ini
 t/babel.104.null_rows/null_rows.master.ini
 t/babel.105.old_keyword.t
+t/babel.106.empty_ids.t
 t/Build.pm
 t/handcrafted.data.ini
 t/handcrafted.idtype.ini

@@ -60,9 +60,9 @@ my $babel=old Data::Babel($OPTIONS{babel_name});
 if ($OPTIONS{create} || $OPTIONS{reread} || !$babel) {
   # idtypes, masters, maptables are names of configuration files that define 
   #   the Babel's component objects
-  my $idtypes=File::Spec->catfile qw(examples idtype.ini);
-  my $masters=File::Spec->catfile qw(examples master.ini);
-  my $maptables=File::Spec->catfile qw(examples maptable.ini);
+  my $idtypes=File::Spec->catfile(qw(examples idtype.ini));
+  my $masters=File::Spec->catfile(qw(examples master.ini));
+  my $maptables=File::Spec->catfile(qw(examples maptable.ini));
 
   $babel=new Data::Babel
     (name=>$OPTIONS{babel_name},old=>$babel,

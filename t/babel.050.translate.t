@@ -6,11 +6,9 @@ use Getopt::Long;
 use strict;
 
 # if --developer set, run full test suite. else just a short version
-
 our %OPTIONS;
 Getopt::Long::Configure('pass_through'); # leave unrecognized options in @ARGV
 GetOptions (\%OPTIONS,qw(developer));
-
 
 # 010.star, 020.chain are obsolete -- 030.tree covers them. 
 #   but, since they work, why not include them...

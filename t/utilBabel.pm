@@ -66,8 +66,11 @@ sub scrunched_eq {scrunch($_[0]) eq scrunch($_[1]);}
 #   string: one line per row; each row is whitespace-separated values
 #   list or ARRAY of strings: each string is row
 #   list or ARRAY of ARRAYs: each sub-ARRAY is row
+# CAUTION: 2nd & 3rd cases ambiguous: list of 1 ARRAY could fit either case!
 sub prep_tabledata {
-  my @rows=(@_==1 && !ref $_[0])? split(/\n+/,$_[0]): flatten(@_);
+  # NG 12-08-24: fixed to handle list or ARRAY of ARRAYs as documented
+  # my @rows=(@_==1 && !ref $_[0])? split(/\n+/,$_[0]): flatten(@_);
+  my @rows=(@_==1 && !ref $_[0])? split(/\n+/,$_[0]): (@_==1)? flatten(@_): @_;
   # clean whitespace and split rows 
   @rows=map {ref($_)? $_: do {s/^\s+|\s+$//g; s/\s+/ /g; [split(' ',$_)]}} @rows;
   # convert NULLS into undefs
@@ -120,12 +123,14 @@ sub load_master {
   my $query=$master->query;
 
   my $dbh=$babel->autodb->dbh;
-  if ($master->view) {
-    $dbh->do(qq(DROP VIEW IF EXISTS $tablename));
+  # NG 12-08-24: moved DROPs out conditionals since master could be table in one babel
+  #              and view in another
+  $dbh->do(qq(DROP VIEW IF EXISTS $tablename));
+  $dbh->do(qq(DROP TABLE IF EXISTS $tablename));
+ if ($master->view) {
     $dbh->do(qq(CREATE VIEW $tablename AS\n$query));
     return;
   }
-  $dbh->do(qq(DROP TABLE IF EXISTS $tablename));
   my $sql=qq(CREATE TABLE $tablename ($column_def));
   $sql.=" AS\n$query" if $master->implicit; # if implicit, load data via query
   $dbh->do($sql);
@@ -161,14 +166,17 @@ sub load_ur {
   $left;
 }
 # NG 11-01-21: added 'translate all'
+# NG 12-08-22: added 'filters'
 # select data from ur (will actually work for any table)
 sub select_ur {
   my $args=new Hash::AutoHash::Args(@_);
-  my($babel,$urname,$input_idtype,$input_ids,$input_ids_all,$output_idtypes)=
-    @$args{qw(babel urname input_idtype input_ids input_ids_all output_idtypes)};
+  my($babel,$urname,$input_idtype,$input_ids,$input_ids_all,$output_idtypes,$filters)=
+    @$args{qw(babel urname input_idtype input_ids input_ids_all output_idtypes filters)};
   confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
-  $urname or $urname=$args->tablename || 'ur'; 
-  my($input_idtype,@output_idtypes)=map {ref $_? $_->name: $_} ($input_idtype,@$output_idtypes);
+  $urname or $urname=$args->tablename || 'ur';
+  my $input_idtype=ref $input_idtype? $input_idtype->name: $input_idtype;
+  my @output_idtypes=map {ref $_? $_->name: $_} @$output_idtypes;
+  my @filter_idtypes=map {ref $_? $_->name: $_} keys %$filters;
 
   my $dbh=$babel->autodb->dbh;
   # NG 10-08-25: removed 'uniq' since duplicate columns are supposed to be kept
@@ -176,10 +184,20 @@ sub select_ur {
   my @columns=grep {length($_)} ($input_idtype,@output_idtypes);
   my $columns=join(', ',@columns);
   my $sql=qq(SELECT DISTINCT $columns FROM $urname);
-  if ($input_ids && @$input_ids) {
-    my $in='('.join(', ',map {$dbh->quote($_)} @$input_ids).')'; 
-    $sql.=qq( WHERE $input_idtype IN $in);
+  my @wheres;
+  if ($input_ids) {
+    my $cond=@$input_ids? 
+      "$input_idtype IN ".'('.join(', ',map {$dbh->quote($_)} @$input_ids).')': 'FALSE';
+    push(@wheres,$cond);
   }
+  for my $filter_idtype (@filter_idtypes) {
+    my $filter_ids=$filters->{$filter_idtype};
+    my @filter_ids=ref $filter_ids? @$filter_ids: $filter_ids;
+    my $cond=@filter_ids? 
+      "$filter_idtype IN ".'('.join(', ',map {$dbh->quote($_)} @filter_ids).')': 'FALSE';
+    push(@wheres,$cond);
+  }
+  $sql.=' WHERE '.join(' AND ',@wheres) if @wheres;
   my $result=$dbh->selectall_arrayref($sql);
   # NG 10-11-10: remove NULL rows, because translate now skips these
   if (@output_idtypes) {
@@ -193,7 +211,8 @@ sub select_ur {
   # NG 11-01-21: if input_ids_all set, exclude rows where input_idtype is NULL
   #   (the check for $input_idtype is for consistency with loop above. I don't know
   #    whether it's possible for input_ids_all to be set w/o input_idtype being set)
-  if ($input_idtype && $input_ids_all) {
+  # NG 12-08-22: changed test for input_ids_all to !$input_ids - more general
+  if ($input_idtype && !$input_ids) {
     my @result=grep {defined $_->[0]} @$result;
     $result=\@result;
   }
@@ -518,7 +537,7 @@ sub _init_self {
 # drop all tables that look like our intermediates
 sub cleanup {
   my($class,$babel)=@_;
-  my $dbh=$babel->autodb->dbh;
+  my $dbh=defined $babel? $babel->autodb->dbh: Data::Babel->autodb->dbh;
   my @tables=@{$dbh->selectcol_arrayref(qq(SHOW TABLES LIKE 'fulljoin_%'))};
   # being a bit paranoid, make sure each table ends with 3 digits
   @tables=grep /\d\d\d$/,@tables;

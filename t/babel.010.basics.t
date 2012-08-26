@@ -99,19 +99,68 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'translate');
+# NG 12-08-24: added test for empty input_ids
+my $correct=[];
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[],output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate empty input_ids');
 # NG 11-10-21: added translate all
+# NG 12-08-22: added other ways of saying 'translate all'
 my $correct=prep_tabledata($data->basics_all->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate all: input_ids absent');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>undef,
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate all: input_ids=>undef');
 my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids_all=>1,
    output_idtypes=>[qw(type_002 type_003 type_004)]);
-cmp_table($actual,$correct,'translate all');
-
+cmp_table($actual,$correct,'translate all: input_ids_all=>1');
 # NG 10-11-08: test limit
 my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_002 type_003 type_004)],
    limit=>1);
 cmp_table($actual,$correct,'translate with limit',undef,undef,1);
+# NG 12-08-22: added filter
+my $correct=prep_tabledata($data->basics_filter->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>'type_004/a_111'},
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate filter (scalar)');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>['type_004/a_111']},
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate filter (ARRAY)');
+# NG 12-08-22: added ways of saying 'ignore this filter'
+my $correct=prep_tabledata($data->basics->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>undef,output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate w/ undef filters arg');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{},output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate w/ empty filters arg');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>undef},
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate w/ undef filter ');
+# NG 12-08-25: added using objects as idtypes
+my $correct=prep_tabledata($data->basics_filter->data);
+my $actual=$babel->translate
+  (input_idtype=>$babel->name2idtype('type_001'),
+   input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{$babel->name2idtype('type_004')=>'type_004/a_111'},
+   output_idtypes=>[map {$babel->name2idtype($_)} qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate using objects as idtypes');
+
 
 # make schema bad in all possible ways: cyclic, disconnected, uncovered IdType
 use Data::Babel::MapTable;

@@ -3,7 +3,11 @@ for creating a Data::Babel.  The files are copies of the one we were
 using in our production system at the time we created the example.
 
 The script in this directory, babel.pl, is a very simplified version
-of the script we use in production to create and manage our Babels.
+of the script we use in production to create and manage our
+Babels. The script creates and displays Babel objects which contain
+the metadata for performing translations but DOES NOT create the
+actual data for the translations.  For this reason, the Babels
+produced by the script cannot be used to do translations.
 
 The script (like all the tests in the distribution), requires that you
 have access to a MySQL database named 'test', with sufficient

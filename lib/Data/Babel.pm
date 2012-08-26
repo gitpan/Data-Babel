@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.03';
+our $VERSION='1.10_01';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -22,6 +22,7 @@ use Carp;
 use Graph::Undirected;
 use List::MoreUtils qw(uniq);
 use Hash::AutoHash::Args;
+use Hash::AutoHash::MultiValued;
 use Data::Babel::Config;
 use Data::Babel::IdType;
 use Data::Babel::Master;
@@ -116,7 +117,8 @@ sub translate {
   my $missing_args=join(', ',grep {!$args->$_} qw(input_idtype output_idtypes));
   confess "Required argument(s) $missing_args missing" if $missing_args;
   my $ids_args=grep {$args->$_} qw(input_ids input_ids_all);
-  confess "At least one of input_ids or input_ids_all must be set" if $ids_args==0;
+  # NG 12-08-22: okay to omit input_ids; same as input_ids_all=>1
+  # confess "At least one of input_ids or input_ids_all must be set" if $ids_args==0;
   confess "At most one of input_ids or input_ids_all may be set" if $ids_args>1;
   my $sql=$self->generate_query($args);
   my $dbh=$args->dbh || $self->autodb->dbh;
@@ -124,50 +126,58 @@ sub translate {
   confess "Database query failed:\n$sql\n".$dbh->errstr if $dbh->err;
   $results;
 }
+
 sub generate_query {
   my($self,$args)=@_;
-  my @idtypes=($args->input_idtype,@{$args->output_idtypes});
-  # confess "Not enough types specified" unless @idtypes>1;
+  # be careful about objects vs. names
+  # use variables xxx_idtype for objects, xxx_name for names
+  my $input_idtype=$self->_2idtype($args->input_idtype);
+  my $input_name=$input_idtype->name;
+  my $filters=$args->filters;
+  my @filter_keys=defined $filters? grep {defined $filters->{$_}} keys %$filters: ();
+  my @filter_idtypes=map {$self->_2idtype($_)} @filter_keys;
+  my @filter_names=map {$_->name} @filter_idtypes;
+  my @output_idtypes=map {$self->_2idtype($_)} @{$args->output_idtypes};
+  my @output_names=map {$_->name} @output_idtypes;
+  my @idtypes=uniq($input_idtype,@output_idtypes,@filter_idtypes);
   confess "Not enough types specified" unless @idtypes;
-  # idtypes can be specified as objects or names. make sure all idtype names are valid
-  my @bad=grep {!ref $_ && !$self->name2idtype($_)} @idtypes;
-  confess "Invalid idtypes: @bad" if @bad;
-  # convert names to objects
-  # NG 10-08-25: removed 'uniq' since duplicate columns are supposed to be kept
-  # @idtypes=uniq map {ref $_? $_: $self->name2idtype($_)} @idtypes;
-  @idtypes=map {ref $_? $_: $self->name2idtype($_)} @idtypes;
-  my @uniq_idtypes=uniq @idtypes;
- 
+  # make sure all filter keys are names and values ARRAYS - simplifies later code
+  $filters=new Hash::AutoHash::MultiValued
+    (map {$filter_names[$_]=>$filters->{$filter_keys[$_]}} (0..$#filter_keys));
+
   my $dbh=$self->autodb->dbh;
-  my $columns_sql=join(', ',map {$_->name} @idtypes);
-  my $input_idtype=$idtypes[0];
+  my $columns_sql=join(', ',$input_name,@output_names);
   my $input_master=$input_idtype->master;
   # start with master if 'informative': explicit || degree>1. always use if single idtype
-  my @join_tables=($input_master->explicit || $input_idtype->degree>1 || @uniq_idtypes==1)?
+  my @join_tables=($input_master->explicit || $input_idtype->degree>1 || @idtypes==1)?
     $input_master->tablename: ();
   # get rest of query by exploring query graph
-  push(@join_tables,map {$self->id2name($_)} $self->traverse($self->make_query_graph(@idtypes)))
-    if @uniq_idtypes>1;
-  my $join_sql=join(' natural left outer join ',@join_tables);
-  my $input_name=$idtypes[0]->name;
+  push(@join_tables,map {$self->id2name($_)} 
+       $self->traverse($self->make_query_graph(@idtypes))) if @idtypes>1;
+  my $join_sql=join(' NATURAL LEFT OUTER JOIN ',@join_tables);
   # NG 10-08-19: need to quote everything unless we're willing to check the SQL type
   #              'cuz, if column is string and input_id is number, MySQL converts the 
   #              string to a number (not vice versa which makes much more sense !!!!).
   #              since most strings convert to 0, this means that an input_id of 0
   #              matches almost everything
-  # my @input_ids=@{$args->input_ids};
-  # @input_ids=map {$dbh->quote($_)} @input_ids if grep /\D/,@input_ids;
   # NG 11-01-21: add 'translate all'
   my @conds;			# WHERE clauses
   if ($args->input_ids) {
     my @input_ids=map {$dbh->quote($_)} @{$args->input_ids};
-    my $in_list_sql='('.join(', ',@input_ids).')'; 
-    push(@conds," $input_name IN $in_list_sql");
+    my $cond=@input_ids?
+      " $input_name IN ".'('.join(', ',@input_ids).')': ' FALSE';
+    push(@conds,$cond);
+  }
+  # NG 12-08-24: add filters
+  for my $filter_name (@filter_names) {
+    my @filter_ids=map {$dbh->quote($_)} @{$filters->{$filter_name}};
+    my $cond=@filter_ids?
+      " $filter_name IN ".'('.join(', ',@filter_ids).')': ' FALSE';
+    push(@conds,$cond);
   }
   # NG 10-11-10: skip rows whose output columns are all NULL
-  if (@idtypes>1)  {
-    my @output_idtypes=@idtypes[1..$#idtypes]; # input idtype is always 0th
-    my $sql_not_null=join(' OR ',map {$_->name.' IS NOT NULL'} @output_idtypes);
+  if (@output_names)  {
+    my $sql_not_null=join(' OR ',map {"$_ IS NOT NULL"} @output_names);
     push(@conds,"($sql_not_null)");
   }
   my $sql="SELECT DISTINCT $columns_sql FROM $join_sql";
@@ -379,6 +389,49 @@ sub _name2object {
   }
 }
 
+# _2idtype used in generate_query
+sub _2idtype {
+  my $self=shift;
+  if (ref $_[0]) {
+    confess "Invalid idtype $_[0]" unless UNIVERSAL::isa($_[0],'Data::Babel::IdType');
+    return $_[0];
+  }
+  # else may be name or stringified ref
+  unless ($_[0]=~/^Data::Babel::IdType=HASH\(0x\w+\)$/) {
+    my $idtype=$self->name2idtype($_[0]);
+    confess "Invalid idtype $_[0]" unless UNIVERSAL::isa($idtype,'Data::Babel::IdType');
+    return $idtype;
+  }
+  # code to convert stringified ref adapted from http://stackoverflow.com/questions/1671281/how-can-i-convert-the-stringified-version-of-array-reference-to-actual-array-ref?rq=1
+  # CAUTION: will segfault if bad string passed in!
+  require B;
+  my($hexaddr)=$_[0]=~/.*(0x\w+)/;
+  my $idtype=bless(\(0+hex $hexaddr), "B::AV")->object_2svref;
+  confess "Invalid filter idtype $_[0]" unless $idtype=~/^Data::Babel::IdType=HASH\(0x\w+\)$/;
+  $idtype;
+}
+# _2idtype_name NOT USED
+# sub _2idtype_name {
+#   my $self=shift;
+#   if (ref $_[0]) {
+#     confess "Invalid idtype $_[0]" unless UNIVERSAL::isa($_[0],'Data::Babel::IdType');
+#     return $_[0]->name;
+#   }
+#   # else may be name or stringified ref
+#   unless ($_[0]=~/^Data::Babel::IdType=HASH\(0x\w+\)$/) {
+#     my $idtype=$self->name2idtype($_[0]);
+#     confess "Invalid idtype $_[0]" unless UNIVERSAL::isa($idtype,'Data::Babel::IdType');
+#     return $_[0];
+#   }
+#   # code to convert stringified ref adapted from http://stackoverflow.com/questions/1671281/how-can-i-convert-the-stringified-version-of-array-reference-to-actual-array-ref?rq=1
+#   # CAUTION: will segfault if bad string passed in!
+#   require B;
+#   my($hexaddr)=$_[0]=~/.*(0x\w+)/;
+#   my $idtype=bless(\(0+hex $hexaddr), "B::AV")->object_2svref;
+#   confess "Invalid filter idtype $_[0]" unless $idtype=~/^Data::Babel::IdType=HASH\(0x\w+\)$/;
+#   $idtype->name;
+# }
+
 # TODO: belongs in some Util
 sub flatten {map {'ARRAY' eq ref $_? @$_: $_} @_;}
 
@@ -395,7 +448,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.03
+Version 1.10_01
 
 =head1 SYNOPSIS
 
@@ -420,23 +473,25 @@ Version 1.03
   # open database containing real data
   my $dbh=DBI->connect("dbi:mysql:database=test",undef,undef);
 
-  # translate several Entrez Gene ids to other types
   # CAUTION: rest of SYNOPSIS assumes you've loaded the real database somehow
+  # translate several Entrez Gene ids to other types
   my $table=$babel->translate
-    (dbh=>$dbh,
-     input_idtype=>'gene_entrez',
+    (input_idtype=>'gene_entrez',
      input_ids=>[1,2,3],
-     output_idtypes=>[qw(gene_symbol gene_ensembl
-                         transcript_refseq transcript_ensembl
-                         chip_affy probe_affy chip_lumi probe_lumi)]);
+     output_idtypes=>[qw(gene_symbol gene_ensembl chip_affy probe_affy)]);
   # print a few columns from each row of result
   for my $row (@$table) {
     print "Entrez gene=$row->[0]\tsymbol=$row->[1]\tEnsembl gene=$row->[2]\n";
   }
+  # same translation but limit results to Affy hgu133a
+  my $table=$babel->translate
+    (input_idtype=>'gene_entrez',
+     input_ids=>[1,2,3],
+     filters=>{chip_affy=>'hgu133a'},
+     output_idtypes=>[qw(gene_symbol gene_ensembl chip_affy probe_affy)]);
   # generate a table mapping all Entrez Gene ids to UniProt ids
   my $table=$babel->translate
     (input_idtype=>'gene_entrez',
-     input_ids_all=>1,
      output_idtypes=>[qw(protein_uniprot)]);
   # convert to HASH for easy programmatic lookups
   my %gene2uniprot=map {$_[0]=>$_[1]} @$table;
@@ -453,10 +508,11 @@ the shared types.
 The principal method is 'translate' which converts identifiers of one
 type into identifiers of one or more output types.  In typical usage,
 you call 'translate' with a list of input ids to convert.  You can
-also call it without any input ids (and with the special option
+also call it without any input ids (or with the special option
 'input_ids_all' set) to generate a complete mapping of the input type
 to the output types.  This is convenient if you want to hang onto the
-mapping for repeated use.
+mapping for repeated use.  You can also filter the output based on
+values of other identifier types.
 
 CAVEAT: Some features of Data::Babel are overly specific to the
 procedure we use to construct the underlying Babel database.  We note
@@ -744,36 +800,39 @@ The available class attributes are
  Usage   : $table=$babel->translate
                      (input_idtype=>'gene_entrez',
                       input_ids=>[1,2,3],
+                      filters=>{chip_affy=>'hgu133a'},
                       output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
                       limit=>100)
-           -- OR --
-           $table=$babel->translate
-                     (input_idtype=>'gene_entrez',
-                      input_ids_all=>1,
-                      output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
-                      limit=>100000)
- Function: Translate the input ids into ids of the output types
+ Function: Translate the input ids to ids of the output types
  Returns : table represented as an ARRAY of ARRAYS. Each inner ARRAY is one row
-           of the result; the first element of each is an input id, the rest are
-           outputs in the same order as output_idtypes
+           of the result. The first element of each row is an input id; the rest
+           are outputs in the same order as output_idtypes
  Args    : input_idtype   name of Data::Babel::IdType object or object
-           input_ids      ARRAY of ids to be translated.  It is an error to set
-                          both input_ids and input_ids_all.
-           input_ids_all  If true, all ids of the input type are translated. We
-                          recommend that 1 be used as the true value. See Notes 
-                          below. It is an error to set both input_ids and
-                          input_ids_all. 
+           input_ids      ARRAY of ids to be translated. If absent or undef, all
+                          ids of the input type are translated. If an empty
+                          array, ie, [], no ids are translated and the result
+                          will be empty.
+           input_ids_all  a more explicit way to specify that all ids of the 
+                          input type should be translated.
+           filters        HASH of conditions limiting the output; see below.
            output_idtypes ARRAY of names of Data::Babel::IdType objects or
                           objects
            limit          maximum number of rows to retrieve (optional)
- Notes   : Duplicate columns are retained. 
+ Notes   : Duplicate output columns are retained. 
            Does not return output rows in which the output columns are all NULL.
            If no output idtypes are specified, returns rows for which the input
            id exists in the corresponding Master table.
            The order of output rows is arbitrary.
-           At present, input_ids_all may be set to any true value but in future,
-           we may interpret the value differently. 
-           It is an error to set both input_ids and input_ids_all. 
+           If input_ids is an empty ARRAY, ie, [], the result will be empty.
+           It is an error to set both input_ids and input_ids_all.
+
+The 'filters' argument is a HASH of types and values. The types can be names of
+Data::Babel::IdType objects or objects themselves. The values can be single
+values or ARRAYs of values. For example
+
+  filters=>{chip_affy=>'hgu133a'}
+  filters=>{chip_affy=>['hgu133a','hgu133plus2']}
+  filters=>{chip_affy=>['hgu133a','hgu133plus2'],pathway_kegg_id=>4610}
 
 =head2 show
 

@@ -143,7 +143,8 @@ my $actual=$babel->translate
 cmp_table($actual,$correct,
 	  'translate all ids (explicit values). outputs=3');
 
-# NG 11-10-21: added translate all
+# NG 11-10-21: test translate all
+# NG 12-08-22: test other ways of saying input_ids_all=>1
 # only a few cases worth testing.
 load_ur($babel,'ur');
 
@@ -151,21 +152,39 @@ my $output_idtypes=[qw(type_2)];
 my $correct=select_ur
   (babel=>$babel,input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
 my $actual=$babel->translate
+  (input_idtype=>'type_1',output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all (input_ids absent). outputs=2');
+my $actual=$babel->translate
+  (input_idtype=>'type_1',input_ids=>undef,output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all (input_ids=>undef). outputs=2');
+my $actual=$babel->translate
   (input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
-cmp_table($actual,$correct,'translate all. outputs=2');
+cmp_table($actual,$correct,'translate all (input_ids_all=>1). outputs=2');
 
 my $output_idtypes=[qw(type_3)];
 my $correct=select_ur
   (babel=>$babel,input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
 my $actual=$babel->translate
+  (input_idtype=>'type_1',output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all (input_ids absent). outputs=3');
+my $actual=$babel->translate
+  (input_idtype=>'type_1',input_ids=>undef,output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all (input_ids=>undef). outputs=3');
+my $actual=$babel->translate
   (input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
-cmp_table($actual,$correct,'translate all. outputs=3');
+cmp_table($actual,$correct,'translate all (input_ids_all=>1). outputs=3');
 
 my $output_idtypes=[qw(type_2 type_3)];
 my $correct=select_ur
   (babel=>$babel,input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
 my $actual=$babel->translate
+  (input_idtype=>'type_1',output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all (input_ids absent). outputs=2,3');
+my $actual=$babel->translate
+  (input_idtype=>'type_1',input_ids=>undef,output_idtypes=>$output_idtypes);
+cmp_table($actual,$correct,'translate all (input_ids=>undef). outputs=2,3');
+my $actual=$babel->translate
   (input_idtype=>'type_1',input_ids_all=>1,output_idtypes=>$output_idtypes);
-cmp_table($actual,$correct,'translate all. outputs=2,3');
+cmp_table($actual,$correct,'translate all (input_ids_all=>1). outputs=2,3');
 
 done_testing();

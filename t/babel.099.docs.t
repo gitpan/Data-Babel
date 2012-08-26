@@ -33,25 +33,28 @@ unless ($babel) {
 # open database containing real data
 my $dbh=DBI->connect("dbi:mysql:database=test",undef,undef);
 
-# translate several Entrez Gene ids to other types
-# CAUTION: rest of SYNOPSIS assumes you've loaded the real database somehow
 goto SKIP1;
+  # CAUTION: rest of SYNOPSIS assumes you've loaded the real database somehow
+  # translate several Entrez Gene ids to other types
 my $table=$babel->translate
-  (dbh=>$dbh,
-   input_idtype=>'gene_entrez',input_ids=>[1,2,3],
-   output_idtypes=>[qw(gene_symbol gene_ensembl
-		       transcript_refseq transcript_ensembl
-		       chip_affy probe_affy chip_lumi probe_lumi)]);
+  (input_idtype=>'gene_entrez',
+   input_ids=>[1,2,3],
+   output_idtypes=>[qw(gene_symbol gene_ensembl chip_affy probe_affy)]);
 # print a few columns from each row of result
 for my $row (@$table) {
   print "Entrez gene=$row->[0]\tsymbol=$row->[1]\tEnsembl gene=$row->[2]\n";
 }
+# same translation but limit results to Affy hgu133a
+my $table=$babel->translate
+  (input_idtype=>'gene_entrez',
+   input_ids=>[1,2,3],
+   filters=>{chip_affy=>'hgu133a'},
+   output_idtypes=>[qw(gene_symbol gene_ensembl chip_affy probe_affy)]);
 # generate a table mapping all Entrez Gene ids to UniProt ids
 my $table=$babel->translate
   (input_idtype=>'gene_entrez',
-   input_ids_all=>1,
    output_idtypes=>[qw(protein_uniprot)]);
-# convert to hash for easy programmatic lookups
+# convert to HASH for easy programmatic lookups
 my %gene2uniprot=map {$_[0]=>$_[1]} @$table;
 
 SKIP1:
@@ -94,14 +97,16 @@ my $table;
 $table=$babel->translate
   (input_idtype=>'gene_entrez',
    input_ids=>[1,2,3],
+   filters=>{chip_affy=>'hgu133a'},
    output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
    limit=>100);
-$table=$babel->translate
-  (input_idtype=>'gene_entrez',
-   input_ids_all=>1,
-   output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
-   limit=>100000);
 SKIP2:
+my %filters=
+  {filters=>{chip_affy=>'hgu133a'},
+   filters=>{chip_affy=>['hgu133a','hgu133plus2']},
+   filters=>{chip_affy=>['hgu133a','hgu133plus2'],pathway_kegg_id=>4610},
+  };
+pass('translate in METHODS AND FUNCTIONS');
 
 # show: just make sure it prints something..
 # redirect STDOUT to a string. adapted from perlfunc

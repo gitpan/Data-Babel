@@ -1,12 +1,12 @@
 ########################################
-# 010.basics -- translate mechanics using handcrafted Babel & components
-# more challenging translations tested separately
+# 040.translate_hand -- translate using handcrafted Babel & components
 ########################################
 use t::lib;
 use t::utilBabel;
 use Test::More;
 use Test::Deep;
 use File::Spec;
+use Set::Scalar;
 use Class::AutoDB;
 use Data::Babel;
 use Data::Babel::Config;
@@ -61,6 +61,18 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'sanity test - basic translate');
+# NG 12-08-22: added filter
+my $correct=prep_tabledata($data->basics_filter->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>'type_004/a_111'},
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'sanity test - basic translate filter (scalar)');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>['type_004/a_111']},
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'sanity test - basic translate filter (ARRAY)');
 # NG 11-10-21: added translate all
 my $correct=prep_tabledata($data->basics_all->data);
 my $actual=$babel->translate
@@ -69,21 +81,21 @@ my $actual=$babel->translate
 cmp_table($actual,$correct,'sanity test - basic translate all');
 
 # now the real tests begin.
-# for every input do 0-4+ outputs
-#   for each case, test 1 input that matches nothing, then test 1-all input ids
-#     NG 10-11-08: for each case, test w/o limit and with limits of 0,1,2
-#     NG 11-01-21: for each case, test input_ids_all
-# for some cases, outputs will contain input
-# with >4 outputs, some guaranteed to be duplicates
+# NG 12-08-23: rewrote to use Set::Scalar power_set and test all
+#   all combinations of outputs.
+# Also test with duplicate outputs
+# Note that for some cases, outputs will contain input
+# For each case, test 1 input that matches nothing, then test 1-all input ids
+#    NG 10-11-08: for each case, test w/o limit and with limits of 0,1,2
+#    NG 11-01-21: for each case, test input_ids_all
 my @idtypes=qw(type_001 type_002 type_003 type_004);
+my $idtypes_subsets=Set::Scalar->new(@idtypes)->power_set;
 my @ids=qw(000 001 010 011 100 101 110 111);
-for my $i (0..3) {
-  doit_all($i);			# no outputs
-  doit_all($i,0);
-  doit_all($i,0,1);
-  doit_all($i,0,1,2);
-  doit_all($i,0,1,2,3);
-  doit_all($i,0,1,2,3,3,2,1,0);
+for my $idtype (@idtypes) {
+  while (defined(my $idtypes_subset=$idtypes_subsets->each)) {
+    doit_all($idtype,$idtypes_subset->members);
+  }
+  doit_all($idtype,@idtypes,@idtypes); # duplicate ouputs
 }
 # test a big IN clause
 my $big=10000;
@@ -104,21 +116,21 @@ cleanup_ur($babel);		# clean up intermediate files
 done_testing();
 
 sub doit_all {
-  my($input,@outputs)=@_;
+  my($input_idtype,@output_idtypes)=@_;
   my $ok=1;
-  $ok&&=doit($input,['none'],\@outputs,__FILE__,__LINE__) or return 0;
-  $ok&&=doit($input,'all',\@outputs,__FILE__,__LINE__) or return 0;
- for my $i (0..$#ids) {
-    $ok&&=doit($input,[0..$i],\@outputs,__FILE__,__LINE__) or return 0;
+  $ok&&=doit($input_idtype,['none'],\@output_idtypes,__FILE__,__LINE__) or return 0;
+  $ok&&=doit($input_idtype,'all',\@output_idtypes,__FILE__,__LINE__) or return 0;
+  for my $i (0..$#ids) {
+    $ok&&=doit($input_idtype,[0..$i],\@output_idtypes,__FILE__,__LINE__) or return 0;
   }
-  report_pass($ok,"input=$input, outputs=".join(',',@outputs));
+  report_pass($ok,"input=$input_idtype, outputs=".join(',',@output_idtypes));
 }
-# input & outputs are array indices - not actual IdTypes
+# input & outputs are IdTypes
 # ids can be 'none' or array indices
 sub doit {
-  my($input,$ids,$outputs,$file,$line)=@_;
-  my $input_idtype=$idtypes[$input];
-  my $output_idtypes=[@idtypes[@$outputs]];
+  my($input_idtype,$ids,$output_idtypes,$file,$line)=@_;
+  # my $input_idtype=$idtypes[$input];
+  # my $output_idtypes=[@idtypes[@$outputs]];
   my $ok=1;
   if (ref $ids) {		# usual case: list of ids
     my $input_ids=[map {/\D/? $_: $input_idtype.'/a_'.$ids[$_]} @$ids];
@@ -137,15 +149,25 @@ sub doit {
       my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes, limit=$limit";
       $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line,$limit) or return 0;
     }
-  } else {			# NG 11-01-21: test input_ids_all
+  } else {
+    # NG 11-01-21: test input_ids_all=>1
+    # NG 12-08-22: test other ways of saying input_ids_all=>1
     my $correct=select_ur
       (babel=>$babel,
        input_idtype=>$input_idtype,input_ids_all=>1,output_idtypes=>$output_idtypes);
     my $actual=$babel->translate
+      (input_idtype=>$input_idtype,output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, input_ids absent, output_idtypes=@$output_idtypes";
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    my $actual=$babel->translate
+      (input_idtype=>$input_idtype,input_ids=>undef,output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, input_ids=>undef, output_idtypes=@$output_idtypes";
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    my $actual=$babel->translate
       (input_idtype=>$input_idtype,input_ids_all=>1,output_idtypes=>$output_idtypes);
     my $label="input_idtype=$input_idtype, input_ids_all, output_idtypes=@$output_idtypes";
     $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
-  }
+ }
   $ok;
 }
 # # return true if args all different

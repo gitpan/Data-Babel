@@ -31,7 +31,9 @@
             "Hash::AutoHash::Args" : "1.11",
             "List::MoreUtils" : "0.09",
             "List::Util" : "1.14",
+            "Math::BaseCalc" : "1.009",
             "Scalar::Util" : "1.01",
+            "Set::Scalar" : "1.22",
             "Storable" : "2.16",
             "TAP::Harness" : "3.12",
             "Test::Deep" : "0.098",
@@ -57,6 +59,7 @@
             "Graph" : "0.91",
             "Hash::AutoHash" : "1.12",
             "Hash::AutoHash::Args" : "1.11",
+            "Hash::AutoHash::MultiValued" : "1.11",
             "List::MoreUtils" : "0.09",
             "Template" : "2.2"
          }
@@ -65,7 +68,7 @@
    "provides" : {
       "Data::Babel" : {
          "file" : "lib/Data/Babel.pm",
-         "version" : "1.03"
+         "version" : "1.10_01"
       },
       "Data::Babel::Base" : {
          "file" : "lib/Data/Babel/Base.pm",
@@ -88,11 +91,11 @@
          "version" : 0
       }
    },
-   "release_status" : "stable",
+   "release_status" : "testing",
    "resources" : {
       "license" : [
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.03"
+   "version" : "1.10_01"
 }

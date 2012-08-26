@@ -70,12 +70,21 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
 cmp_table($actual,$correct,'translate with duplicate outputs');
-# NG 11-10-21: added translate all
+# NG 11-10-21: test translate all
+# NG 12-08-22: test other ways of saying input_ids_all=>1
 my $correct=prep_tabledata($data->translate_dup_outputs_all->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',
+   output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
+cmp_table($actual,$correct,'translate all (input_ids absent) with duplicate outputs');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>undef,
+   output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
+cmp_table($actual,$correct,'translate all (input_ids=>undef) with duplicate outputs');
 my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids_all=>1,
    output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
-cmp_table($actual,$correct,'translate all with duplicate outputs');
+cmp_table($actual,$correct,'translate all (input_ids_all=>1) with duplicate outputs');
 
 cleanup_ur($babel);		# clean up intermediate files
 done_testing();
