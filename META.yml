@@ -15,7 +15,8 @@ build_requires:
   FindBin: 0
   Getopt::Long: 2.13
   Graph: 0.91
-  Hash::AutoHash::Args: 1.11
+  Hash::AutoHash::Args: 1.14
+  Hash::AutoHash::MultiValued: 1.14
   List::MoreUtils: 0.09
   List::Util: 1.14
   Math::BaseCalc: 1.009
@@ -39,12 +40,21 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.10_01
+    version: 1.10_02
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
   Data::Babel::Config:
     file: lib/Data/Babel/Config.pm
+    version: 0
+  Data::Babel::HAH_MultiValued:
+    file: lib/Data/Babel/HAH_MultiValued.pm
+    version: 0
+  Data::Babel::HAH_MultiValued::helper:
+    file: lib/Data/Babel/HAH_MultiValued.pm
+    version: 0
+  Data::Babel::HAH_MultiValued::tie:
+    file: lib/Data/Babel/HAH_MultiValued.pm
     version: 0
   Data::Babel::IdType:
     file: lib/Data/Babel/IdType.pm
@@ -64,11 +74,11 @@ requires:
   File::Basename: 0
   File::Spec: 3.26
   Graph: 0.91
-  Hash::AutoHash: 1.12
-  Hash::AutoHash::Args: 1.11
-  Hash::AutoHash::MultiValued: 1.11
+  Hash::AutoHash: 1.15
+  Hash::AutoHash::Args: 1.14
+  Hash::AutoHash::MultiValued: 1.14
   List::MoreUtils: 0.09
   Template: 2.2
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.10_01
+version: 1.10_02

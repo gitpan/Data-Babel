@@ -58,7 +58,7 @@ cmp_table($actual,$correct,'sanity test - ur construction');
 
 # test ur selection for sanity
 my $correct=prep_tabledata($data->ur_selection->data);
-my $actual=select_ur(babel=>$babel,urname=>'ur',output_idtypes=>[qw(type_001 type_004)]);
+my $actual=select_ur_sanity(babel=>$babel,urname=>'ur',output_idtypes=>[qw(type_001 type_004)]);
 cmp_table($actual,$correct,'sanity test - ur selection');
 
 # now the real tests begin.
@@ -137,7 +137,9 @@ sub doit {
   my $ok=1;
   my %filters;
   for my $filter_idtype (@$filter_idtypes) {
-    my @filter_ids=[map {/\D/? $_: $filter_idtype.'/a_'.$ids[$_]} @$ids];
+    # NG 12-09-21: line below obviously wrong... scary that not caught sooner
+    # my @filter_ids=[map {/\D/? $_: $filter_idtype.'/a_'.$ids[$_]} @$ids];
+    my @filter_ids=map {/\D/? $_: $filter_idtype.'/a_'.$ids[$_]} @$ids;
     $filters{$filter_idtype}=\@filter_ids;
   }
   my $correct=select_ur
@@ -145,29 +147,53 @@ sub doit {
      input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
      output_idtypes=>$output_idtypes);
   # way too many cases yield empty results. skip most of them
-  return($ok) unless scalar(@$correct)||$ids->[0] eq 'none';
-  # print "correct size=",scalar @$correct,"\n";
-  # do it with all input_ids
-  my $actual=$babel->translate
-    (input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
-     output_idtypes=>$output_idtypes);
-  my $label="input_idtype=$input_idtype, all input_ids, filter_idtypes=@$filter_idtypes, filter_ids=@$ids, output_idtypes=@$output_idtypes";
-  $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
-  # do it again with input_ids absent
-  my $actual=$babel->translate
-    (input_idtype=>$input_idtype,filters=>\%filters,
-     output_idtypes=>$output_idtypes);
-  my $label="input_idtype=$input_idtype, input_ids absent, filter_idtypes=@$filter_idtypes, filter_ids=@$ids, output_idtypes=@$output_idtypes";  
-  $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
-
-  # now do it with filters turned off
-  my %filters=map {$_=>undef} @$filter_idtypes;
-  my $correct=select_ur
-    (babel=>$babel,
-     input_idtype=>$input_idtype,output_idtypes=>$output_idtypes);
-  my $actual=$babel->translate
-    (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
-  my $label="input_idtype=$input_idtype, input_ids absent, filters undef, output_idtypes=@$output_idtypes";  
-  $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+  # return($ok) unless scalar(@$correct)||$ids->[0] eq 'none';
+  if (scalar(@$correct)||$ids->[0] eq 'none') {
+    # print "correct size=",scalar @$correct,"\n";
+    # do it with all input_ids
+    my $actual=$babel->translate
+      (input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
+       output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, all input_ids, filter_idtypes=@$filter_idtypes, filter_ids=@$ids, output_idtypes=@$output_idtypes";
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    # do it again with input_ids absent
+    my $actual=$babel->translate
+      (input_idtype=>$input_idtype,filters=>\%filters,
+       output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, input_ids absent, filter_idtypes=@$filter_idtypes, filter_ids=@$ids, output_idtypes=@$output_idtypes";  
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+  }
+  if (@$filter_idtypes) {
+    # do it with undef added to one filter
+    my $filter_idtype=$filter_idtypes->[0];
+    my $list=$filters{$filter_idtype};
+    push(@$list,undef);
+    my $correct=select_ur
+      (babel=>$babel,
+       input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+    my $actual=$babel->translate
+      (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, input_ids absent, $filter_idtype contains undef, filter_idtypes=@$filter_idtypes, filter_ids=@$ids, output_idtypes=@$output_idtypes";  
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    # do it with one filter=>undef
+    $filters{$filter_idtype}=undef;
+    my $correct=select_ur
+      (babel=>$babel,
+       input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+    my $actual=$babel->translate
+      (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, input_ids absent, $filter_idtype=>undef,filter_idtypes=@$filter_idtypes, filter_ids=@$ids, output_idtypes=@$output_idtypes";  
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    
+    # do it with all filter=>undef
+    my %filters=map {$_=>undef} @$filter_idtypes;
+    my $correct=select_ur
+      (babel=>$babel,
+       input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+    my $actual=$babel->translate
+      (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+    my $label="input_idtype=$input_idtype, input_ids absent, all filters undef,filter_idtypes=@$filter_idtypes, filter_ids=@$ids, output_idtypes=@$output_idtypes";  
+    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+  }
   $ok;
 }

@@ -56,7 +56,9 @@ my $table=$babel->translate
    output_idtypes=>[qw(protein_uniprot)]);
 # convert to HASH for easy programmatic lookups
 my %gene2uniprot=map {$_[0]=>$_[1]} @$table;
-
+  # count number of Entrez Gene ids represented on Affy hgu133a
+  my $count=$babel->count
+    (input_idtype=>'gene_entrez',filters=>{chip_affy=>'hgu133a'});
 SKIP1:
 my $name='test';
 my $idtypes=File::Spec->catfile(qw(examples idtype.ini));
@@ -100,13 +102,36 @@ $table=$babel->translate
    filters=>{chip_affy=>'hgu133a'},
    output_idtypes=>[qw(transcript_refseq transcript_ensembl)],
    limit=>100);
+
+  # If a filter value is undef, ...
+$babel->translate(input_idtype=>'gene_entrez',
+		  filters=>{pathway_kegg_id=>undef},
+		  output_idtypes=>[qw(gene_symbol)]);
+$babel->translate(input_idtype=>'gene_entrez',
+		  filters=>{pathway_kegg_id=>[undef,4610]},
+		  output_idtypes=>[qw(gene_symbol)]);
 SKIP2:
-my %filters=
-  {filters=>{chip_affy=>'hgu133a'},
+my @filters=
+  (filters=>{chip_affy=>'hgu133a'},
    filters=>{chip_affy=>['hgu133a','hgu133plus2']},
    filters=>{chip_affy=>['hgu133a','hgu133plus2'],pathway_kegg_id=>4610},
-  };
+   filters=>[chip_affy=>'hgu133a',chip_affy=>'hgu133plus2'],
+   filters=>{chip_affy=>['hgu133a','hgu133plus2']},
+   filters=>{chip_affy=>['hgu133a','hgu133plus2'],pathway_kegg_id=>undef},
+   filters=>{chip_affy=>'hgu133a',pathway_kegg_id=>[undef,4610]},
+  );
 pass('translate in METHODS AND FUNCTIONS');
+
+# CAUTION: count assumes you've loaded the real database somehow
+goto SKIP3;
+my $number;
+$number=$babel->count
+  (input_idtype=>'gene_entrez',
+   input_ids=>[1,2,3],
+   filters=>{chip_affy=>'hgu133a'},
+   output_idtypes=>[qw(transcript_refseq transcript_ensembl)]);
+SKIP3:
+pass('count in METHODS AND FUNCTIONS');
 
 # show: just make sure it prints something..
 # redirect STDOUT to a string. adapted from perlfunc
@@ -123,6 +148,12 @@ ok(length($showout)>500,'show in METHODS AND FUNCTIONS');
 ok(!@errstrs,'check_schema array context in METHODS AND FUNCTIONS');
 $ok=$babel->check_schema;
 ok($ok,'check_schema scalar context in METHODS AND FUNCTIONS');
+
+TODO: {
+  local $TODO = "load_implicit_masters not implemented";
+  # $babel->load_implicit_masters;
+  fail("TBD: tests for load_implicit_masters");
+}
 
 my($idtype,$master,$maptable,$object,$name);
 $idtype=$babel->name2idtype('gene_entrez');

@@ -3,14 +3,19 @@ use t::util;
 use Carp;
 use Test::More;
 use Test::Deep;
+use List::Util qw(min);
 use List::MoreUtils qw(uniq);
+use Hash::AutoHash::Args;
+# use Hash::AutoHash::MultiValued;
 use Exporter();
+use strict;
 our @ISA=qw(Exporter);
 
 our @EXPORT=
   (@t::util::EXPORT,
    qw(check_object_basics sort_objects
-      prep_tabledata load_maptable load_master load_ur select_ur cleanup_ur
+      prep_tabledata load_maptable load_master load_ur 
+      select_ur filter_ur count_ur select_ur_sanity cleanup_ur
       cmp_objects cmp_objects_quietly cmp_table cmp_table_quietly
       check_handcrafted_idtypes check_handcrafted_masters check_handcrafted_maptables
       check_handcrafted_name2idtype check_handcrafted_name2master check_handcrafted_name2maptable
@@ -167,57 +172,138 @@ sub load_ur {
 }
 # NG 11-01-21: added 'translate all'
 # NG 12-08-22: added 'filters'
+# NG 12-09-04: rewrote to do filtering in Perl - seems more robust test strategy
+# NG 12-09-21: added support for input_ids=>scalar, filters=>ARRAY,  
+#              all semantics of filter=>undef
 # select data from ur (will actually work for any table)
 sub select_ur {
   my $args=new Hash::AutoHash::Args(@_);
-  my($babel,$urname,$input_idtype,$input_ids,$input_ids_all,$output_idtypes,$filters)=
-    @$args{qw(babel urname input_idtype input_ids input_ids_all output_idtypes filters)};
-  confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
+  my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters)=
+    @$args{qw(babel urname input_idtype input_ids output_idtypes filters)};
+  confess "input_idtype must be set. call select_ur_sanity instead" unless $input_idtype;
+  # confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
   $urname or $urname=$args->tablename || 'ur';
   my $input_idtype=ref $input_idtype? $input_idtype->name: $input_idtype;
+  if (defined $input_ids) {
+    $input_ids=[$input_ids] unless ref $input_ids;
+    confess "bad input id: ref or stringified ref"
+      if grep {ref($_) || $_=~/ARRAY|HASH/} @$input_ids;
+  }
   my @output_idtypes=map {ref $_? $_->name: $_} @$output_idtypes;
-  my @filter_idtypes=map {ref $_? $_->name: $_} keys %$filters;
-
+  $filters=filters_array($filters) if ref $filters eq 'ARRAY';
+  my @filter_idtypes=keys %$filters;
+  
   my $dbh=$babel->autodb->dbh;
   # NG 10-08-25: removed 'uniq' since duplicate columns are supposed to be kept
   # my @columns=uniq grep {length($_)} ($input_idtype,@output_idtypes);
-  my @columns=grep {length($_)} ($input_idtype,@output_idtypes);
+  # NG 12-09-04: include filter_idtypes so we can do filtering in Perl
+  # NG 12-09-04: test for length obsolete, since input_idtype required
+  # my @columns=grep {length($_)} ($input_idtype,@filter_idtypes,@output_idtypes);
+  my @columns=($input_idtype,@filter_idtypes,@output_idtypes);
   my $columns=join(', ',@columns);
-  my $sql=qq(SELECT DISTINCT $columns FROM $urname);
-  my @wheres;
-  if ($input_ids) {
-    my $cond=@$input_ids? 
-      "$input_idtype IN ".'('.join(', ',map {$dbh->quote($_)} @$input_ids).')': 'FALSE';
-    push(@wheres,$cond);
+  my $sql=qq(SELECT DISTINCT $columns FROM $urname WHERE $columns[0] IS NOT NULL);
+  my $table=$dbh->selectall_arrayref($sql);
+
+  # now do filtering. columns are input, filters, then outputs
+  $table=filter_ur($table,0,$input_ids);
+  for(my $j=0; $j<@filter_idtypes && @$table; $j++) {
+    my $filter_ids=$filters->{$filter_idtypes[$j]};
+    $table=filter_ur($table,$j+1,$filter_ids);
   }
-  for my $filter_idtype (@filter_idtypes) {
-    my $filter_ids=$filters->{$filter_idtype};
-    my @filter_ids=ref $filter_ids? @$filter_ids: $filter_ids;
-    my $cond=@filter_ids? 
-      "$filter_idtype IN ".'('.join(', ',map {$dbh->quote($_)} @filter_ids).')': 'FALSE';
-    push(@wheres,$cond);
-  }
-  $sql.=' WHERE '.join(' AND ',@wheres) if @wheres;
-  my $result=$dbh->selectall_arrayref($sql);
-  # NG 10-11-10: remove NULL rows, because translate now skips these
-  if (@output_idtypes) {
-    my @result;
-    for my $row (@$result) {
-      my @output_cols=$input_idtype? @$row[1..$#$row]: @$row;
-      push(@result,$row) if grep {defined $_} @output_cols;
-    }
-    $result=\@result;
-  }
-  # NG 11-01-21: if input_ids_all set, exclude rows where input_idtype is NULL
-  #   (the check for $input_idtype is for consistency with loop above. I don't know
-  #    whether it's possible for input_ids_all to be set w/o input_idtype being set)
-  # NG 12-08-22: changed test for input_ids_all to !$input_ids - more general
-  if ($input_idtype && !$input_ids) {
-    my @result=grep {defined $_->[0]} @$result;
-    $result=\@result;
-  }
-  $result;
+  # remove filter_idtype columns
+  map {splice(@$_,1,@filter_idtypes)} @$table;
+  # remove duplicate rows. dups can arise when filter columns spliced out
+  $table=uniq_rows($table);
+
+  # NG 10-11-10: remove rows whose output columns are all NULL, because translate now skips these
+  # NG 12-09-04: rewrote loop to one-liner below
+  @$table=grep {my @row=@$_; grep {defined $_} @row[1..$#row]} @$table if @output_idtypes;
+  $table;
 }
+sub filter_ur {
+  my($table,$col,$ids)=@_;
+  if (defined $ids) {
+    $ids=[$ids] unless ref $ids;
+    confess "bad filter id for column $col: ref or stringified ref"
+      if grep {ref($_) || $_=~/ARRAY|HASH/} @$ids;
+    if (@$ids) {
+      my(@table1,@table2);
+      my @defined_ids=grep {defined $_} @$ids;
+      my $pattern=join('|',@defined_ids);
+      $pattern=qr/$pattern/;
+      @table1=grep {$_->[$col]=~/$pattern/} @$table if @defined_ids;
+      @table2=grep {!defined $_->[$col]} @$table if @defined_ids!=@$ids;
+      @$table=(@table1,@table2);
+    } else {			# empty list of ids - result empty
+      @$table=();
+    }
+  } else {			# filter=>undef
+    @$table=grep {defined $_->[$col]} @$table;
+  }
+  $table;
+}
+# remove duplicate rows from table
+sub uniq_rows {
+  my($rows)=@_;
+  my @row_strings=map {join($;,@$_)} @$rows;
+  my %seen;
+  my $uniq_rows=[];
+  for(my $i=0; $i<@$rows; $i++) {
+    my $row_string=$row_strings[$i];
+    push(@$uniq_rows,$rows->[$i]) unless $seen{$row_string}++;
+  }
+  $uniq_rows;
+}
+# process filters ARRAY - a bit hacky 'cuz filter=>undef not same as filter=>[undef]
+sub filters_array {
+  my @filters=@{$_[0]};
+  my(%filters,%filter_undef);
+  # code adapted from Hash::AutoHash::MultiValued
+  while (@filters>1) { 
+    my($key,$value)=splice @filters,0,2; # shift 1st two elements
+    if (defined $value || $filter_undef{$key}) { 
+      # store value if defined or key has multiple occurrences of undef
+      my $list=$filters{$key}||($filters{$key}=[]);
+      if (defined $value) {
+	push(@$list,$value) unless ref $value;
+	push(@$list,@$value) if ref $value;
+      }
+    } else {
+      $filter_undef{$key}++;
+    }}
+  # add the undefs to %filters
+  for my $key (keys %filter_undef) {
+    my $list=$filters{$key};
+    if (defined $list) {
+      push(@$list,undef);
+    } else {
+      $filters{$key}=undef;
+    }
+   }
+  \%filters;
+}
+
+# NG 12-09-04: separated ur sanity tests from real tests
+sub select_ur_sanity {
+  my $args=new Hash::AutoHash::Args(@_);
+  my($babel,$urname,$output_idtypes)=@$args{qw(babel urname output_idtypes)};
+  my @output_idtypes=map {ref $_? $_->name: $_} @$output_idtypes;
+
+  my $dbh=$babel->autodb->dbh;
+  my $columns=join(', ',@output_idtypes);
+  my $sql=qq(SELECT DISTINCT $columns FROM $urname);
+  my $table=$dbh->selectall_arrayref($sql);
+
+  # remove NULL rows (probably aren't any)
+  @$table=grep {my @row=@$_; grep {defined $_} @row} @$table;
+  $table;
+}
+# NG 12-09-23: added count_ur. simple wrapper around select_ur
+sub count_ur {
+  my $table=select_ur(@_);
+  scalar @$table;
+}
+
 # cmp ARRAYs of Babel component objects (anything with an 'id' method will work)
 # like cmp_bag but 
 # 1) reports errors the way we want them
@@ -250,12 +336,13 @@ sub cmp_table_quietly {
     # my $ok=cmp_quietly($actual,bag(@$correct),$label,$file,$line);
     return cmp_quietly(\@actual_sorted,\@correct_sorted,$label,$file,$line);
   } else {
-    report_fail(@$actual<=$limit,"$label: expected $limit row(s), got ".scalar @$actual,
-		$file,$line)
+    my $correct_count=min(scalar(@$correct),$limit);
+    report_fail(@$actual==$correct_count,
+		"$label: expected $correct_count row(s), got ".scalar @$actual,$file,$line)
       or return 0;
     return cmp_quietly($actual,subbagof(@$correct),$label,$file,$line);
   }
-  $ok;
+  1;
 }
 
 # sort subroutine: $a, $b are ARRAYs of strings. should be same lengths. cmp element by element
@@ -487,7 +574,7 @@ sub check_handcrafted_id2name {
   my %id2name=map {$ids[$_]=>$names[$_]} (0..$#ids);
   for my $id (@ids) {
     my $actual=$babel->id2name($id);
-    report_fail($actual eq $id2name{$id},"$label: object $name") or return 0;
+    report_fail($actual eq $id2name{$id},"$label: object $id") or return 0;
   }
   pass($label);
 }

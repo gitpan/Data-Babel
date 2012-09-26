@@ -1,11 +1,12 @@
 ########################################
-# 040.translate_hand -- translate using handcrafted Babel & components
+# 040.count_hand -- count using handcrafted Babel & components
 ########################################
 use t::lib;
 use t::utilBabel;
 use Test::More;
 use Test::Deep;
 use File::Spec;
+use List::Util qw(min);
 use Set::Scalar;
 use Class::AutoDB;
 use Data::Babel;
@@ -55,30 +56,33 @@ my $correct=prep_tabledata($data->ur_selection->data);
 my $actual=select_ur_sanity(babel=>$babel,urname=>'ur',output_idtypes=>[qw(type_001 type_004)]);
 cmp_table($actual,$correct,'sanity test - ur selection');
 
-# redo basic translate test for sanity
+# redo basic count test for sanity
 my $correct=prep_tabledata($data->basics->data);
-my $actual=$babel->translate
+$correct=scalar @$correct;
+my $actual=$babel->count
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    output_idtypes=>[qw(type_002 type_003 type_004)]);
-cmp_table($actual,$correct,'sanity test - basic translate');
+is($actual,$correct,'sanity test - basic count');
 # NG 12-08-22: added filter
 my $correct=prep_tabledata($data->basics_filter->data);
-my $actual=$babel->translate
+$correct=scalar @$correct;
+my $actual=$babel->count
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    filters=>{type_004=>'type_004/a_111'},
    output_idtypes=>[qw(type_002 type_003 type_004)]);
-cmp_table($actual,$correct,'sanity test - basic translate filter (scalar)');
-my $actual=$babel->translate
+is($actual,$correct,'sanity test - basic count filter (scalar)');
+my $actual=$babel->count
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    filters=>{type_004=>['type_004/a_111']},
    output_idtypes=>[qw(type_002 type_003 type_004)]);
-cmp_table($actual,$correct,'sanity test - basic translate filter (ARRAY)');
-# NG 11-10-21: added translate all
+is($actual,$correct,'sanity test - basic count filter (ARRAY)');
+# NG 11-10-21: added count all
 my $correct=prep_tabledata($data->basics_all->data);
-my $actual=$babel->translate
+$correct=scalar @$correct;
+my $actual=$babel->count
   (input_idtype=>'type_001',input_ids_all=>1,
    output_idtypes=>[qw(type_002 type_003 type_004)]);
-cmp_table($actual,$correct,'sanity test - basic translate all');
+is($actual,$correct,'sanity test - basic count all');
 
 # now the real tests begin.
 # NG 12-08-23: rewrote to use Set::Scalar power_set and test all
@@ -103,14 +107,14 @@ my $input_idtype='type_001';
 my @regular_input_ids=map {$input_idtype."/a_$_"} @ids;
 my @extra_input_ids=map {"extra_$_"} (0..$big-1);
 my $output_idtypes=['type_004'];
-my $correct=select_ur
+my $correct=count_ur
   (babel=>$babel,
    input_idtype=>$input_idtype,input_ids=>[@regular_input_ids],output_idtypes=>$output_idtypes);
-my $actual=$babel->translate
+my $actual=$babel->count
   (input_idtype=>$input_idtype,input_ids=>[@regular_input_ids,@extra_input_ids],
    output_idtypes=>$output_idtypes);
 my $label="big IN clause: size > $big";
-cmp_table($actual,$correct,$label);
+is($actual,$correct,$label);
 
 cleanup_ur($babel);		# clean up intermediate files
 done_testing();
@@ -134,48 +138,48 @@ sub doit {
   my $ok=1;
   if (ref $ids) {		# usual case: list of ids
     my $input_ids=[map {/\D/? $_: $input_idtype.'/a_'.$ids[$_]} @$ids];
-    my $correct=select_ur
+    my $correct=count_ur
       (babel=>$babel,
        input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
-    my $actual=$babel->translate
+    my $actual=$babel->count
       (input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
     my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes";
-    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    $ok&&=cmp_quietly($actual,$correct,$label,$file,$line) or return 0;
     # NG 10-11-08: test with limits of 0,1,2
     for my $limit (0,1,2) {
-      my $actual=$babel->translate
+      my $actual=$babel->count
 	(input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes,
 	 limit=>$limit);
       my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes, limit=$limit";
-      $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line,$limit) or return 0;
+      $ok&&=cmp_quietly($actual,min($correct,$limit),$label,$file,$line) or return 0;
     }
     # NG 12-09-22: added input_ids=>scalar
     my $input_id=$input_ids->[scalar(@$input_ids)-1];
-    my $correct=select_ur
+    my $correct=count_ur
       (babel=>$babel,
        input_idtype=>$input_idtype,input_ids=>$input_id,output_idtypes=>$output_idtypes);
-    my $actual=$babel->translate
+    my $actual=$babel->count
       (input_idtype=>$input_idtype,input_ids=>$input_id,output_idtypes=>$output_idtypes);
     my $label="input_idtype=$input_idtype, input_ids=$input_id (as scalar), output_idtypes=@$output_idtypes";
-    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    $ok&&=cmp_quietly($actual,$correct,$label,$file,$line) or return 0;
   } else {
     # NG 11-01-21: test input_ids_all=>1
     # NG 12-08-22: test other ways of saying input_ids_all=>1
-    my $correct=select_ur
+    my $correct=count_ur
       (babel=>$babel,
        input_idtype=>$input_idtype,input_ids_all=>1,output_idtypes=>$output_idtypes);
-    my $actual=$babel->translate
+    my $actual=$babel->count
       (input_idtype=>$input_idtype,output_idtypes=>$output_idtypes);
     my $label="input_idtype=$input_idtype, input_ids absent, output_idtypes=@$output_idtypes";
-    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
-    my $actual=$babel->translate
+    $ok&&=cmp_quietly($actual,$correct,$label,$file,$line) or return 0;
+    my $actual=$babel->count
       (input_idtype=>$input_idtype,input_ids=>undef,output_idtypes=>$output_idtypes);
     my $label="input_idtype=$input_idtype, input_ids=>undef, output_idtypes=@$output_idtypes";
-    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
-    my $actual=$babel->translate
+    $ok&&=cmp_quietly($actual,$correct,$label,$file,$line) or return 0;
+    my $actual=$babel->count
       (input_idtype=>$input_idtype,input_ids_all=>1,output_idtypes=>$output_idtypes);
     my $label="input_idtype=$input_idtype, input_ids_all, output_idtypes=@$output_idtypes";
-    $ok&&=cmp_table_quietly($actual,$correct,$label,$file,$line) or return 0;
+    $ok&&=cmp_quietly($actual,$correct,$label,$file,$line) or return 0;
  }
   $ok;
 }

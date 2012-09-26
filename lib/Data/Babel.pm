@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.10_01';
+our $VERSION='1.10_02';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -27,6 +27,7 @@ use Data::Babel::Config;
 use Data::Babel::IdType;
 use Data::Babel::Master;
 use Data::Babel::MapTable;
+use Data::Babel::HAH_MultiValued;
 
 use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES %SYNONYMS %DEFAULTS %AUTODB);
 use base qw(Data::Babel::Base);
@@ -122,35 +123,49 @@ sub translate {
   confess "At most one of input_ids or input_ids_all may be set" if $ids_args>1;
   my $sql=$self->generate_query($args);
   my $dbh=$args->dbh || $self->autodb->dbh;
-  my $results=$dbh->selectall_arrayref($sql);
+  my $results=$args->count? $dbh->selectrow_array($sql): $dbh->selectall_arrayref($sql);
   confess "Database query failed:\n$sql\n".$dbh->errstr if $dbh->err;
   $results;
 }
-
+sub count {
+  my $self=shift;
+  my $args=new Hash::AutoHash::Args(@_);
+  $args->count(1);
+  $self->translate($args);
+}
 sub generate_query {
   my($self,$args)=@_;
   # be careful about objects vs. names
   # use variables xxx_idtype for objects, xxx_name for names
   my $input_idtype=$self->_2idtype($args->input_idtype);
   my $input_name=$input_idtype->name;
+  my $input_ids=$args->input_ids;
+  $input_ids=[$input_ids] if defined $input_ids && !ref $input_ids;
+  
   my $filters=$args->filters;
-  my @filter_keys=defined $filters? grep {defined $filters->{$_}} keys %$filters: ();
+  # make sure all filter keys are names and values undef or ARRAYS - simplifies later code
+  $filters=new Data::Babel::HAH_MultiValued $filters;
+  my @filter_keys=keys %$filters;
   my @filter_idtypes=map {$self->_2idtype($_)} @filter_keys;
   my @filter_names=map {$_->name} @filter_idtypes;
+  $filters=new Data::Babel::HAH_MultiValued
+    (map {$filter_names[$_]=>$filters->{$filter_keys[$_]}} (0..$#filter_keys));
+
   my @output_idtypes=map {$self->_2idtype($_)} @{$args->output_idtypes};
   my @output_names=map {$_->name} @output_idtypes;
   my @idtypes=uniq($input_idtype,@output_idtypes,@filter_idtypes);
   confess "Not enough types specified" unless @idtypes;
-  # make sure all filter keys are names and values ARRAYS - simplifies later code
-  $filters=new Hash::AutoHash::MultiValued
-    (map {$filter_names[$_]=>$filters->{$filter_keys[$_]}} (0..$#filter_keys));
 
   my $dbh=$self->autodb->dbh;
-  my $columns_sql=join(', ',$input_name,@output_names);
+  my $columns_sql=$args->count? 
+    # MySQL doesn't allow duplicate columns in inner queries. sigh..
+    join(', ',uniq($input_name,@output_names)): join(', ',$input_name,@output_names);
   my $input_master=$input_idtype->master;
-  # start with master if 'informative': explicit || degree>1. always use if single idtype
-  my @join_tables=($input_master->explicit || $input_idtype->degree>1 || @idtypes==1)?
-    $input_master->tablename: ();
+  # start with master if 'informative': explicit || degree>1. 
+  # always use if single idtype or user wants all input_ids
+  my @join_tables=
+    ($input_master->explicit || $input_idtype->degree>1 || @idtypes==1 || !defined($input_ids))?
+      $input_master->tablename: ();
   # get rest of query by exploring query graph
   push(@join_tables,map {$self->id2name($_)} 
        $self->traverse($self->make_query_graph(@idtypes))) if @idtypes>1;
@@ -162,17 +177,29 @@ sub generate_query {
   #              matches almost everything
   # NG 11-01-21: add 'translate all'
   my @conds;			# WHERE clauses
-  if ($args->input_ids) {
-    my @input_ids=map {$dbh->quote($_)} @{$args->input_ids};
+  if (defined $input_ids) {
+    my @input_ids=map {$dbh->quote($_)} @$input_ids;
     my $cond=@input_ids?
       " $input_name IN ".'('.join(', ',@input_ids).')': ' FALSE';
     push(@conds,$cond);
   }
-  # NG 12-08-24: add filters
+  # NG 12-08-24: support filters
+  # NG 12-09-21: handle undefs
   for my $filter_name (@filter_names) {
-    my @filter_ids=map {$dbh->quote($_)} @{$filters->{$filter_name}};
-    my $cond=@filter_ids?
-      " $filter_name IN ".'('.join(', ',@filter_ids).')': ' FALSE';
+    my $cond;
+    my $filter_ids=$filters->$filter_name;
+    if (!defined $filter_ids) {
+      $cond="$filter_name IS NOT NULL";
+    } elsif (@$filter_ids) {
+      my @cond;
+      my @defined_ids=map {$dbh->quote($_)} grep {defined $_} @$filter_ids;
+      push(@cond," $filter_name IN ".'('.join(', ',@defined_ids).')') if @defined_ids;
+      push(@cond,"$filter_name IS NULL") if @defined_ids!=@$filter_ids;
+      $cond=join(' OR ',@cond);
+      $cond="($cond)" if @cond>1;
+    } else {			# it's filter=>undef[]
+      $cond="FALSE";
+    }
     push(@conds,$cond);
   }
   # NG 10-11-10: skip rows whose output columns are all NULL
@@ -182,10 +209,17 @@ sub generate_query {
   }
   my $sql="SELECT DISTINCT $columns_sql FROM $join_sql";
   $sql.=' WHERE '.join(' AND ',@conds) if @conds;
+
   # NG 10-11-08: support limit. based on DM's change
   my $limit=$args->limit;
   confess "Invalid limit: $limit" if defined $limit && $limit=~/\D/;
   $sql.=" LIMIT $limit" if defined $limit;
+
+  # NG 12-09-23: support count
+  # Note: 'AS T' needed at end of query because mySQL sees inner select as defining derived
+  #       table and requires every derived table have alias
+  $sql=qq(SELECT COUNT(*) FROM ($sql) AS T) if $args->count;
+  
   $sql;
 }
 
@@ -448,7 +482,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.10_01
+Version 1.10_02
 
 =head1 SYNOPSIS
 
@@ -495,6 +529,10 @@ Version 1.10_01
      output_idtypes=>[qw(protein_uniprot)]);
   # convert to HASH for easy programmatic lookups
   my %gene2uniprot=map {$_[0]=>$_[1]} @$table;
+  
+  # count number of Entrez Gene ids represented on Affy hgu133a
+  my $count=$babel->count
+    (input_idtype=>'gene_entrez',filters=>{chip_affy=>'hgu133a'});
 
 =head1 DESCRIPTION
 
@@ -666,7 +704,7 @@ identifiers that do not connect to any identifiers of the desired
 output types.  In other words, 'translate' never returns output rows
 in which the output columns are all NULL.
 
-An input identifier can fail to connect for several reasons: 
+An input identifier can fail to connect for two reasons: 
 
 =over 2
 
@@ -674,14 +712,8 @@ An input identifier can fail to connect for several reasons:
 input IdType; this generally means that the input id is not valid.
 
 =item 2. The identifier exists in the Master table for the input
-IdType (hence is valid) but is not present in any MapTables; this is
-rare, because it means the identifer is valid but does not participate
-in any relationships.
-
-=item 3. The identifier exists in the Master table for the input
-IdType and one or more MapTables, but the rows that match the input
-contain NULLs for all output IdTypes; this is normal and simply means
-that the input doesn't connect to any ids of the desired output types.
+IdType (hence is valid), but doesn't doesn't connect to any ids of the
+desired output types. This is normal
 
 =back
 
@@ -808,31 +840,91 @@ The available class attributes are
            of the result. The first element of each row is an input id; the rest
            are outputs in the same order as output_idtypes
  Args    : input_idtype   name of Data::Babel::IdType object or object
-           input_ids      ARRAY of ids to be translated. If absent or undef, all
-                          ids of the input type are translated. If an empty
-                          array, ie, [], no ids are translated and the result
-                          will be empty.
-           input_ids_all  a more explicit way to specify that all ids of the 
-                          input type should be translated.
-           filters        HASH of conditions limiting the output; see below.
+           input_ids      ARRAY of ids to be translated or a single id. If 
+                          absent or undef, all ids of the input type are 
+                          translated. If an empty array, ie, [], no ids are 
+                          translated and the result will be empty.
+           input_ids_all  if true, all ids of the input type are translated. 
+                          Equivalent to omitting input_ids or setting it to
+                          undef but more explicit.
+           filters        HASH or ARRAY of conditions limiting the output; see 
+                          below.
            output_idtypes ARRAY of names of Data::Babel::IdType objects or
                           objects
            limit          maximum number of rows to retrieve (optional)
+           count          if true, return number of output rows rather than the 
+                          rows themselves. Equivalent to 'count' method.
  Notes   : Duplicate output columns are retained. 
            Does not return output rows in which the output columns are all NULL.
            If no output idtypes are specified, returns rows for which the input
            id exists in the corresponding Master table.
            The order of output rows is arbitrary.
+           If input_ids is absent or undef, all ids of the input type are 
+           translated.
            If input_ids is an empty ARRAY, ie, [], the result will be empty.
            It is an error to set both input_ids and input_ids_all.
 
-The 'filters' argument is a HASH of types and values. The types can be names of
-Data::Babel::IdType objects or objects themselves. The values can be single
-values or ARRAYs of values. For example
+=head3 Filters
+
+The 'filters' argument is a HASH or ARRAY of types and values. The
+types can be names of Data::Babel::IdType objects or objects
+themselves. The values can be single ids, ARRAYs of ids, or undef; the
+ARRAYs may also contain undef. For example
 
   filters=>{chip_affy=>'hgu133a'}
   filters=>{chip_affy=>['hgu133a','hgu133plus2']}
   filters=>{chip_affy=>['hgu133a','hgu133plus2'],pathway_kegg_id=>4610}
+  filters=>{chip_affy=>['hgu133a','hgu133plus2'],pathway_kegg_id=>undef}
+  filters=>{chip_affy=>'hgu133a',pathway_kegg_id=>[undef,4610]}
+
+If the argument is an ARRAY, it is possible for the same type to
+appear multiple times in which case the values are combined.  For example,
+
+  filters=>[chip_affy=>'hgu133a',chip_affy=>'hgu133plus2']
+
+is equivalent to 
+
+  filters=>{chip_affy=>['hgu133a','hgu133plus2']}
+
+If a filter value is an empty ARRAY, ie, [], the result will be empty.
+
+If a filter value is undef, all ids of the given type are acceptable.
+This limits the output to rows for which the filter type is not
+NULL. For example,
+
+  $babel->translate(input_idtype=>'gene_entrez',
+                    filters=>{pathway_kegg_id=>undef},
+                    output_idtypes=>[qw(gene_symbol)])
+
+generates a table of all Entrez Gene ids and gene symbols which appear in
+any KEGG pathway.
+
+Including undef in an ARRAY lets the output contain rows for which the
+filter type is NULL.  For example,
+
+  $babel->translate(input_idtype=>'gene_entrez',
+                    filters=>{pathway_kegg_id=>[undef,4610]},
+                    output_idtypes=>[qw(gene_symbol)])
+
+generates a table of all Entrez Gene ids and gene symbols which either
+appear in KEGG patway 4610 or appear in no KEGG pathway.
+
+CAUTION: undef has opposite semantics depending on whether it's the
+only value for a filter type or whether it's one of several.
+
+=head2 count
+
+ Title   : count 
+ Usage   : $number=$babel->count
+                     (input_idtype=>'gene_entrez',
+                      input_ids=>[1,2,3],
+                      filters=>{chip_affy=>'hgu133a'},
+                      output_idtypes=>[qw(transcript_refseq transcript_ensembl)])
+ Function: Count number of output rows that would be generated by 'translate'
+ Returns : number
+ Args    : same as 'translate'
+
+'count' is a wrapper for 'translate' that sets the 'count' argument to a true value.
 
 =head2 show
 
@@ -862,6 +954,23 @@ values or ARRAYs of values. For example
            Masters and MapTables
  Returns : boolean
  Args    : none
+
+=head2 load_implicit_masters
+
+ Title   : load_implicit_masters
+ Usage   : $babel->load_implicit_masters
+ Function: Creates database structures for implicit Masters. 
+ Returns : nothing useful
+ Args    : none
+
+Babel creates 'implicit' Masters for any IdTypes lacking explicit
+ones. An implicit Master has a list of valid identifiers and could be
+implemented as a view over all MapTables containing the IdType. In the
+current implementation, we use views for IdTypes contained in single
+MapTables but construct actual tables for IdTypes contained in
+multiple MapTables. 
+
+This method must be called after the real database is loaded.
 
 =head2 Finding component objects by name or id & related
 
@@ -963,6 +1072,7 @@ The available object attributes are
   referent      the type of things to which this type of identifier refers
   defdb         the database, if any, which assigns identifiers
   meta          meta-type: eid (meaning synthetic), symbol, name, description
+                internal (meaning should not be used by external users)
   format        Perl format of valid identifiers, eg, /^\d+$/
   perl_format   synonym for format
   sql_type      SQL data type, eg, INT(11)
@@ -979,6 +1089,22 @@ The available class attributes are
  Returns : number
  Args    : none
 
+=head2 internal
+
+ Title   : internal 
+ Usage   : $boolean=$idtype->internal
+ Function: Convenience method testing whether 'meta' attribute  is 'internal'
+ Returns : boolean
+ Args    : none
+
+=head2 external
+
+ Title   : external 
+ Usage   : $boolean=$idtype->external
+ Function: Opposite of 'internal'. Tests whether 'meta' attribute  is not 
+           'internal'
+ Returns : boolean
+ Args    : none
 
 =head1 METHODS AND ATTRIBUTES OF COMPONENT CLASS Data::Babel::Master
 

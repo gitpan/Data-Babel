@@ -42,7 +42,7 @@ cmp_table($actual,$correct,'sanity test - ur construction');
 
 # test ur selection (no duplicate outputs) for sanity
 my $correct=prep_tabledata($data->ur_selection->data);
-my $actual=select_ur(babel=>$babel,urname=>'ur',output_idtypes=>[qw(type_001 type_004)]);
+my $actual=select_ur_sanity(babel=>$babel,urname=>'ur',output_idtypes=>[qw(type_001 type_004)]);
 cmp_table($actual,$correct,'sanity test - ur selection (no duplicate outputs)');
 
 # redo basic translate test for sanity
@@ -60,9 +60,9 @@ cmp_table($actual,$correct,'sanity test - basic translate all');
 
 # test ur selection with duplicate outputs
 my $correct=prep_tabledata($data->ur_dup_outputs->data);
-my $actual=select_ur(babel=>$babel,urname=>'ur',
-		     output_idtypes=>[qw(type_001 type_001 type_003 type_003 type_004)]);
-cmp_table($actual,$correct,'ur selection with duplicate outputs');
+my $actual=select_ur_sanity
+  (babel=>$babel,urname=>'ur',output_idtypes=>[qw(type_001 type_001 type_003 type_003 type_004)]);
+cmp_table($actual,$correct,'sanity test - ur selection with duplicate outputs');
 
 # test translate with duplicate outputs
 my $correct=prep_tabledata($data->translate_dup_outputs->data);

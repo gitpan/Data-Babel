@@ -20,7 +20,7 @@ my $autodb=new Class::AutoDB(database=>'test',create=>1);
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
 Data::Babel->autodb($autodb);
 my $dbh=$autodb->dbh;
-my $confpath=File::Spec->catfile(scriptpath,scriptbasename);
+my $confpath=File::Spec->catfile(scriptpath,scriptbasename.'.dir');
 
 # make component objects and Babel. note that $masters is for EXPLICIT masters only
 my $idtypes=new Data::Babel::Config

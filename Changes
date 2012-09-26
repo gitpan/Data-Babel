@@ -1,17 +1,26 @@
 Revision history for Data-Babel
 
-1.10_04 2012-mm-dd
+1.10_05 2012-mm-dd
 	Added orthology mapping and changed 'translate' to use it
 
-1.10_03 2012-08-xx
-	Added histories to Master objects and changed 'translate' to use them
-
-1.10_02 2012-08-xx
+1.10_04 2012-11-xx
 	New features
-	  'create_masters' - correct name TBD
-	  'validate' method
-	  'count' method
+	  histories (Master objects)
+	  'load_implicit_masters' method
+
+1.10_03 2012-10-xx
+	New features
+	  internal id types
+	  'load_implicit_masters' method
 ----------
+1.10_02 2012-09-26
+	New features
+          Improved semantics for undefs in filters
+	  'create_masters' - correct name TBD
+	  'count' method
+	Bug fixes
+	  'translate' with empty input_ids would sometimes return NULL id
+
 1.10_01 2012-08-25
 	New features
 	  filters - new arg to 'translate'
