@@ -15,6 +15,7 @@ use strict;
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1); 
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+cleanup_db($autodb);		# cleanup database from previous test
 Data::Babel->autodb($autodb);
 my $dbh=$autodb->dbh;
 
@@ -43,6 +44,7 @@ my $data=new Data::Babel::Config
   (file=>File::Spec->catfile(scriptpath,'handcrafted.data.ini'))->autohash;
 load_handcrafted_maptables($babel,$data);
 load_handcrafted_masters($babel,$data);
+$babel->load_implicit_masters;
 load_ur($babel,'ur');
 
 # test ur construction for sanity
@@ -112,7 +114,6 @@ my $actual=$babel->translate
 my $label="big IN clause: size > $big";
 cmp_table($actual,$correct,$label);
 
-cleanup_ur($babel);		# clean up intermediate files
 done_testing();
 
 sub doit_all {

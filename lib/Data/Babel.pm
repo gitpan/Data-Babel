@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.10_02';
+our $VERSION='1.10_03';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -307,26 +307,31 @@ sub make_imps {
     $idtype->master($master);	     # connect new Master to its IdType
   }
 }
-# sub make_imps {
-#   my $self=shift;
-#   my $schema_graph=$self->schema_graph;
-#   my @joiners=grep {$schema_graph->degree($_->id)>1} @{$self->idtypes};
-#   my %idtype2master=map {$_->idtype->name => $_} @{$self->masters};
-#   my @need_imps=grep {!$idtype2master{$_->name}} @joiners;
-#   for my $idtype (@need_imps) {
-#     my $idtype_name=$idtype->name;
-#     my @maptables=map {$self->id2object($_)} $schema_graph->neighbors($idtype->id);
-#     # my @maptable_names=map {$_->name} @maptables;
-#     my $inputs=join("\n",map {$_->namespace.'/'.$_->name} @maptables);
-#     my $query=join("\nUNION\n",map {"SELECT $idtype_name FROM ".$_->name} @maptables);
-#     my $master=new Data::Babel::Master
-#       (name=>$idtype->name.'_master',inputs=>$inputs,query=>$query,implicit=>1,
-#        babel=>$self,idtype=>$idtype);
-#     push(@{$self->masters},$master); # connect new Master to Babel
-#     $self->name2master($master);     # add new Master to name hash
-#     $idtype->master($master);	     # connect new Master to its IdType
-#   }
-# }
+# NG 12-09-27: added load_implicit_masters (just stub for now)
+#              in stub, create tables, since otherwise tests crash.
+sub load_implicit_masters {
+  my $self=shift;
+  my $dbh=$self->dbh;
+  my @implicits=grep {$_->implicit} @{$self->masters};
+  for my $master (@implicits) {
+    my $tablename=$master->tablename;
+    my $idtype=$master->idtype;
+    my $column_name=$idtype->name;
+    my $column_sql_type=$idtype->sql_type;
+    my $query=$master->query;
+    my $sql=$master->view?
+      qq(CREATE VIEW $tablename): 
+	qq(CREATE TABLE $tablename ($column_name $column_sql_type));
+    $sql.=" AS\n$query";
+    $dbh->do(qq(DROP VIEW IF EXISTS $tablename));
+    $dbh->do(qq(DROP TABLE IF EXISTS $tablename));
+    $dbh->do($sql);
+    if (my $errstr=$dbh->errstr) {
+      confess "Unable to create Master $tablename: $errstr";
+    }
+    $dbh->do(qq(ALTER TABLE $tablename ADD INDEX ($column_name)));
+  }
+}
 
 sub show { 
   my $self=shift;
@@ -362,7 +367,6 @@ sub _edge_str {
   my($v0,$v1)=@$edge;
   $v0 le $v1? "$v0 - $v1": "$v1 - $v0";
 }
-
 # checks (1) schema graph is tree; (2) all IdTypes covered
 sub check_schema {
   my $self=shift;
@@ -482,7 +486,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.10_02
+Version 1.10_03
 
 =head1 SYNOPSIS
 
@@ -1068,11 +1072,14 @@ The available object attributes are
   id            name prefixed with 'idtype', eg, 'idtype:::gene_entrez'
   master        Data::Babel::Master object for this IdType
   maptables     ARRAY of Data::Babel::MapTable objects containing this IdType
-  display_name  human readable name, eg, 'Entrez Gene ID'
+  external      boolean indicating whether this is a regular external ID or one
+                intended for internal use
+  internal      opposite of external
+  display_name  human readable name, eg, 'Entrez Gene ID'; for internal 
+                identifiers, a warning is appended to the end
   referent      the type of things to which this type of identifier refers
   defdb         the database, if any, which assigns identifiers
   meta          meta-type: eid (meaning synthetic), symbol, name, description
-                internal (meaning should not be used by external users)
   format        Perl format of valid identifiers, eg, /^\d+$/
   perl_format   synonym for format
   sql_type      SQL data type, eg, INT(11)
@@ -1087,23 +1094,6 @@ The available class attributes are
  Usage   : $number=$idtype->degree
  Function: Tell how many Data::Babel::MapTables contain this IdType          
  Returns : number
- Args    : none
-
-=head2 internal
-
- Title   : internal 
- Usage   : $boolean=$idtype->internal
- Function: Convenience method testing whether 'meta' attribute  is 'internal'
- Returns : boolean
- Args    : none
-
-=head2 external
-
- Title   : external 
- Usage   : $boolean=$idtype->external
- Function: Opposite of 'internal'. Tests whether 'meta' attribute  is not 
-           'internal'
- Returns : boolean
  Args    : none
 
 =head1 METHODS AND ATTRIBUTES OF COMPONENT CLASS Data::Babel::Master

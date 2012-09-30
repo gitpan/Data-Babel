@@ -23,6 +23,7 @@ GetOptions (\%OPTIONS,qw(developer));
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1); 
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+cleanup_db($autodb);		# cleanup database from previous test
 Data::Babel->autodb($autodb);
 my $dbh=$autodb->dbh;
 
@@ -46,8 +47,9 @@ for (my $i=0; $i<$id_base**2; $i++) {
   my @digits=split('',sprintf("%0.*i",2,$calc->to_base($i)));
   push(@maptable_data,\@digits);
 }
-# create basic Master data - all digits over base $id_base
-my @master_data=(0..$id_base-1);
+# NG 12-09-30: all masters are implicit. no need to load master data
+# # create basic Master data - all digits over base $id_base
+# my @master_data=(0..$id_base-1);
 
 # create UR
 my $tablename='ur';
@@ -81,16 +83,19 @@ my @output_subsets=$OPTIONS{developer}?
   ([],[$idtypes[0]],[$idtypes[2]],[$idtypes[$#idtypes]]);
 
 # star
+cleanup_db($autodb,'keep_ur');		# cleanup database from previous test
 doit_all('star',
 	 map {new Data::Babel::MapTable(name=>"maptable_0_$_",idtypes=>"type_0 type_$_")}
 	 (1..$num_idtypes-1));
 # chain
+cleanup_db($autodb,'keep_ur');		# cleanup database from previous test
 doit_all('chain',
 	 map {my $i=$_-1; my $j=$_; 
 	      new Data::Babel::MapTable(name=>"maptable_${i}_$j",idtypes=>"type_$i type_$j")} 
 	 (1..$num_idtypes-1));
 
 #tree
+cleanup_db($autodb,'keep_ur');		# cleanup database from previous test
 my @maptables;
 my @roots=(0);
 my $more=$num_idtypes-1;
@@ -106,7 +111,6 @@ while ($more) {
 }
 doit_all('tree',@maptables);
 
-cleanup_ur();		# clean up intermediate files
 done_testing();
 
 sub doit_all {
@@ -123,16 +127,20 @@ sub doit_all {
     }
     load_maptable($babel,$maptable,@data);
   }
-  for my $master (@{$babel->masters}) {
-    my @data;
-    my $idtype=$master->idtype;
-    for my $digit (@master_data) {
-      my $id=$idtype->name."/$digit";
-      push(@data,$id);
-    }
-    load_master($babel,$master,@data);
-  }
-  # do the tests!
+  # NG 12-09-30: all masters are implicit. wrongh eaded to load master data
+  #              use load_implicit masters instead
+  $babel->load_implicit_masters;
+  # for my $master (@{$babel->masters}) {
+  #   my @data;
+  #   my $idtype=$master->idtype;
+  #   for my $digit (@master_data) {
+  #     my $id=$idtype->name."/$digit";
+  #     push(@data,$id);
+  #   }
+  # load_master($babel,$master,@data);
+  # }
+
+  # do the tests!  
   my $ok=1;
   for my $filter_idtypes (@filter_subsets) {
     my $filter_names=[map {$_->name} @$filter_idtypes];

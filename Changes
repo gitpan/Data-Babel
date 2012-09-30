@@ -6,13 +6,13 @@ Revision history for Data-Babel
 1.10_04 2012-11-xx
 	New features
 	  histories (Master objects)
-	  'load_implicit_masters' method
-
-1.10_03 2012-10-xx
+	  'validate' method
+----------
+1.10_03 2012-09-30
 	New features
 	  internal id types
 	  'load_implicit_masters' method
-----------
+
 1.10_02 2012-09-26
 	New features
           Improved semantics for undefs in filters

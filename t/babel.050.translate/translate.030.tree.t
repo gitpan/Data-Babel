@@ -35,6 +35,7 @@ my $last_maptable=$num_maptables-1;
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1); 
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+cleanup_db($autodb);		# cleanup database from previous test
 Data::Babel->autodb($autodb);
 my $dbh=$autodb->dbh;
 
@@ -121,9 +122,13 @@ for (0..$last_maptable) {
   my $maptable_name='maptable_'.sprintf('%03d',$_);
   load_maptable($babel,$maptable_name,$data);
 }
+# NG 12-09-30: use load_implicit_masters
+$babel->load_implicit_masters;
 for my $master (@{$babel->masters}) {
-  my $data=($master->explicit)? master_data($master): undef;
+  next if $master->implicit;
   my $master_name=$master->name;
+  # my $data=($master->explicit)? master_data($master): undef;
+  my $data=master_data($master);
   load_master($babel,$master_name,$data);
 }
 load_ur($babel,'ur');
@@ -153,7 +158,6 @@ for my $input_idtype (@idtypes) {
   report_pass($ok,"input=".$input_idtype->name);
 }
 
-cleanup_ur($babel);		# clean up intermediate files
 done_testing();
 
 # args are idtypes

@@ -24,6 +24,7 @@ GetOptions (\%OPTIONS,qw(developer));
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1); 
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+cleanup_db($autodb);		# cleanup database from previous test
 Data::Babel->autodb($autodb);
 my $dbh=$autodb->dbh;
 
@@ -73,16 +74,19 @@ my @output_subsets=$OPTIONS{developer}?
   ([],[$idtypes[0]],[$idtypes[2]],[$idtypes[$#idtypes]]);
 
 # star
+cleanup_db($autodb);		# cleanup database from previous test
 doit_all('star',
 	 map {new Data::Babel::MapTable(name=>"maptable_0_$_",idtypes=>"type_0 type_$_")}
 	 (1..$num_idtypes-1));
 # chain
+cleanup_db($autodb);		# cleanup database from previous test
 doit_all('chain',
 	 map {my $i=$_-1; my $j=$_; 
 	      new Data::Babel::MapTable(name=>"maptable_${i}_$j",idtypes=>"type_$i type_$j")} 
 	 (1..$num_idtypes-1));
 
 #tree
+cleanup_db($autodb);		# cleanup database from previous test
 my @maptables;
 my @roots=(0);
 my $more=$num_idtypes-1;
@@ -98,7 +102,6 @@ while ($more) {
 }
 doit_all('tree',@maptables);
 
-cleanup_ur();		# clean up intermediate files
 done_testing();
 
 sub doit_all {
@@ -106,7 +109,7 @@ sub doit_all {
   my $babel=new Data::Babel(name=>$what,idtypes=>\@idtypes,maptables=>\@maptables);
   my $dbh=$babel->autodb->dbh;
   my $ubername='uber_ur';
-  # load MapTables & Masters
+  # load maptables, masters, ur - have to do maptables first
   for my $maptable (@{$babel->maptables}) {
     # code adpated from utilBabel::load_maptable
     my $tablename=$maptable->tablename;
@@ -118,18 +121,23 @@ sub doit_all {
     my $sql=qq(CREATE TABLE $tablename AS SELECT DISTINCT $column_sql FROM $ubername WHERE $where_sql);
     $dbh->do($sql);
   }
-  for my $master (@{$babel->masters}) {
-    # code adpated from utilBabel::load_master
-    my $tablename=$master->tablename;
-    $dbh->do(qq(DROP TABLE IF EXISTS $tablename));
-    my $idtype=$master->idtype;
-    my $column_name=$idtype->name;
-    my $where_sql=qq($column_name IS NOT NULL);
-    my $sql=qq(CREATE TABLE $tablename AS SELECT DISTINCT $column_name FROM ur WHERE $where_sql);
-    $dbh->do($sql);
-  }
-  # make real ur
+  # NG 12-09-30: all masters are implicit. wrong headed to load master data
+  #              use load_implicit masters instead
+  $babel->load_implicit_masters;
+ # make real ur
   load_ur($babel);
+  # # load masters
+  # for my $master (@{$babel->masters}) {
+  #   # code adpated from utilBabel::load_master
+  #   my $tablename=$master->tablename;
+  #   $dbh->do(qq(DROP TABLE IF EXISTS $tablename));
+  #   my $idtype=$master->idtype;
+  #   my $column_name=$idtype->name;
+  #   my $where_sql=qq($column_name IS NOT NULL);
+  #   my $sql=qq(CREATE TABLE $tablename AS SELECT DISTINCT $column_name FROM ur WHERE $where_sql);
+  #   $dbh->do($sql);
+  # }
+
   # do the tests!
   my $ok=1;
   for my $filter_idtypes (@filter_subsets) {

@@ -18,6 +18,7 @@ use strict;
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1); 
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+cleanup_db($autodb);		# cleanup database from previous test
 Data::Babel->autodb($autodb);
 my $dbh=$autodb->dbh;
 my $confpath=File::Spec->catfile(scriptpath,scriptbasename.'.dir');
@@ -50,10 +51,12 @@ for my $name(qw(maptable_12 maptable_23)) {
 }
 # explicit master: type_1
 load_master($babel,'type_1_master',$data->type_1_master->data);
-# implicit masters (no data): type_2, type3
-for my $name(qw(type_2 type_3)) {
-  load_master($babel,$name.'_master');
-}
+# NG 12-09-30: use load_implicit_masters
+$babel->load_implicit_masters;
+# # implicit masters (no data): type_2, type3
+# for my $name(qw(type_2 type_3)) {
+#   load_master($babel,$name.'_master');
+# }
 
 # for sanity, check normal translate
 my $correct=[[qw(type_1/1223 type_2/1223 type_3/1223)]];

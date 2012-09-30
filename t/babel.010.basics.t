@@ -15,8 +15,9 @@ use strict;
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1); 
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
-my $name='test';
+cleanup_db($autodb);		# cleanup database from previous test
 
+my $name='test';
 # expect 'old' to return undef, because database is empty
 my $babel=old Data::Babel(name=>$name,autodb=>$autodb);
 ok(!$babel,'old on empty database returned undef');
@@ -38,6 +39,17 @@ is($babel->autodb,$autodb,'Babel attribute: autodb');
 check_handcrafted_idtypes($babel->idtypes,'mature','Babel attribute: idtypes');
 check_handcrafted_masters($babel->masters,'mature','Babel attribute: masters');
 check_handcrafted_maptables($babel->maptables,'mature','Babel attribute: maptables');
+
+# test internal IdType (external tested by check_handcrafted_idtypes)
+my $idtype=new Data::Babel::IdType(name=>'test',display_name=>'display name',internal=>1);
+{
+  my $ok=1; my $label='internal IdType';
+  $ok&&=report_fail($idtype->display_name eq 'display name: FOR INTERNAL USE ONLY',
+		    "$label: display_name");
+  $ok&&=report_fail(as_bool($idtype->external)==0,"$label: external method");
+  $ok&&=report_fail(as_bool($idtype->internal)==1,"$label: internal method");
+  report_pass($ok,$label);
+}
 
 # next create Babel from component objects. 
 # first, extract components from existing Babel. 
@@ -92,6 +104,10 @@ check_handcrafted_id2name($babel);
 my $data=new Data::Babel::Config
   (file=>File::Spec->catfile(scriptpath,'handcrafted.data.ini'))->autohash;
 load_handcrafted_maptables($babel,$data);
+# NG 12-09-27: added load_implicit_masters
+$babel->load_implicit_masters;
+check_implicit_masters($babel,$data,'load_implicit_masters',__FILE__,__LINE__);
+
 load_handcrafted_masters($babel,$data);
 # load_ur($babel,'ur');
 my $correct=prep_tabledata($data->basics->data);

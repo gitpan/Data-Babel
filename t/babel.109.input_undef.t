@@ -14,6 +14,7 @@ use strict;
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1); 
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+cleanup_db($autodb);		# cleanup database from previous test
 Data::Babel->autodb($autodb);
 my $dbh=$autodb->dbh;
 
@@ -39,11 +40,13 @@ my $correct=[['type_0/1','type_1/1']];
 
 # test translate with implicit masters
 my $babel=new Data::Babel(name=>'implicit',idtypes=>\@idtypes,maptables=>[$maptable]);
-map {load_master($babel,$_)} @{$babel->masters}; # creates views
+# NG 12-09-30: use load_implicit_masters
+$babel->load_implicit_masters;
+# map {load_master($babel,$_)} @{$babel->masters}; # creates views
 my $actual=$babel->translate(input_idtype=>'type_0',output_idtypes=>[qw(type_1)]);
 cmp_table($actual,$correct,'translate implicit masters');
 
-# test translate with implicit masters
+# test translate with explicit masters
 my $babel=
   new Data::Babel(name=>'explicit',idtypes=>\@idtypes,maptables=>[$maptable],masters=>\@masters);
 for my $master (@{$babel->masters}) { # load explicit masters
@@ -60,5 +63,4 @@ for my $master (@{$babel->masters}) { # load explicit masters
 my $actual=$babel->translate(input_idtype=>'type_0',output_idtypes=>[qw(type_1)]);
 cmp_table($actual,$correct,'translate explicit masters');
 
-cleanup_ur($babel);		# clean up intermediate files
 done_testing();

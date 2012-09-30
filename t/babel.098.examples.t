@@ -2,7 +2,7 @@
 # 098.examples -- make sure examples/babel.pl does something reasonable
 ########################################
 use t::lib;
-use t::util;
+use t::utilBabel;
 use Carp;
 use Test::More;
 use Test::Deep;
@@ -13,6 +13,7 @@ use strict;
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1); 
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+cleanup_db($autodb);		# cleanup database from previous test
 my $dbh=$autodb->dbh;
 
 doit('--create');

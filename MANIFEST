@@ -22,6 +22,7 @@ t/babel.000.code_exists.t
 t/babel.001.boilerplate.t
 t/babel.002.pod.t
 t/babel.010.basics.t
+t/babel.012.internal_idtype.t
 t/babel.020.persist.t
 t/babel.020.persist/handcrafted.idtype.ini
 t/babel.020.persist/handcrafted.maptable.ini

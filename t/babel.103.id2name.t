@@ -1,5 +1,7 @@
 use strict;
 use warnings;
+use t::lib;
+use t::utilBabel;
 use Test::More;
 use Data::Babel;
 
@@ -10,6 +12,7 @@ use Data::Babel;
 # create AutoDB database
 my $autodb=new Class::AutoDB(database=>'test',create=>1);
 isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+cleanup_db($autodb);		# cleanup database from previous test
 my $name='test';
 
 my $babel=new Data::Babel(name=>$name);

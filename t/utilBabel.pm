@@ -15,11 +15,11 @@ our @EXPORT=
   (@t::util::EXPORT,
    qw(check_object_basics sort_objects
       prep_tabledata load_maptable load_master load_ur 
-      select_ur filter_ur count_ur select_ur_sanity cleanup_ur
+      select_ur filter_ur count_ur select_ur_sanity cleanup_db cleanup_ur
       cmp_objects cmp_objects_quietly cmp_table cmp_table_quietly
       check_handcrafted_idtypes check_handcrafted_masters check_handcrafted_maptables
       check_handcrafted_name2idtype check_handcrafted_name2master check_handcrafted_name2maptable
-      check_handcrafted_id2object check_handcrafted_id2name
+      check_handcrafted_id2object check_handcrafted_id2name check_implicit_masters
       load_handcrafted_maptables load_handcrafted_masters
     ));
 
@@ -116,8 +116,13 @@ sub load_maptable {
 }
 sub load_master {
   my($babel,$master)=splice(@_,0,2);
-  my $data=prep_tabledata(@_);
   ref $master or $master=$babel->name2master($master);
+  if ($master->implicit) {
+  TODO: {
+      fail("futile to load data for implicit master. use load_implicit_master instead");
+      return;
+    }}
+  my $data=prep_tabledata(@_);
 
   # code adapted from ConnectDots::LoadMaster, ConnectDots::LoadImpMaster, MainData::LoadData
   my $tablename=$master->tablename;
@@ -125,26 +130,30 @@ sub load_master {
   my $column_name=$idtype->name;
   my $column_sql_type=$idtype->sql_type;
   my $column_def="$column_name $column_sql_type";
-  my $query=$master->query;
+  # NG 12-09-30: no longer get here if master implicit
+  # my $query=$master->query;
 
   my $dbh=$babel->autodb->dbh;
   # NG 12-08-24: moved DROPs out conditionals since master could be table in one babel
   #              and view in another
   $dbh->do(qq(DROP VIEW IF EXISTS $tablename));
   $dbh->do(qq(DROP TABLE IF EXISTS $tablename));
- if ($master->view) {
-    $dbh->do(qq(CREATE VIEW $tablename AS\n$query));
-    return;
-  }
+  # NG 12-09-30: no longer get here if master implicit
+  # if ($master->view) {
+  #   $dbh->do(qq(CREATE VIEW $tablename AS\n$query));
+  #   return;
+  # }
   my $sql=qq(CREATE TABLE $tablename ($column_def));
-  $sql.=" AS\n$query" if $master->implicit; # if implicit, load data via query
+  # NG 12-09-30: no longer get here if master implicit
+  # $sql.=" AS\n$query" if $master->implicit; # if implicit, load data via query
   $dbh->do($sql);
-  if (!$master->implicit) {
-    # new code: insert data into table
-    my @values=map {'('.join(', ',map {$dbh->quote($_)} @$_).')'} @$data;
-    my $values=join(",\n",@values);
-    $dbh->do(qq(INSERT INTO $tablename VALUES\n$values));
-  }
+  # NG 12-09-30: no longer get here if master implicit
+  # if (!$master->implicit) {
+  # new code: insert data into table
+  my @values=map {'('.join(', ',map {$dbh->quote($_)} @$_).')'} @$data;
+  my $values=join(",\n",@values);
+  $dbh->do(qq(INSERT INTO $tablename VALUES\n$values));
+  # }
   # code adapted from MainData::LoadData Step
   $dbh->do(qq(ALTER TABLE $tablename ADD INDEX ($column_name)));
 }
@@ -381,7 +390,19 @@ sub full_join {
   $dbh->do(qq(CREATE TABLE $resultname ($columns) AS\n$query));
   $result;
 }
-# arg is babel. clean up intermediate tables created en route to ur
+# drop all tables and views associated with Babel tests
+#   arg is generally AutoDB
+#   do at start, rather than end, to leave bread crumbs for post-run debugging
+sub cleanup_db {
+  my($autodb,$keep_ur)=@_;
+  my $dbh=$autodb->dbh;
+  my @tables=(@{$dbh->selectcol_arrayref(qq(SHOW TABLES LIKE '%maptable%'))},
+	      @{$dbh->selectcol_arrayref(qq(SHOW TABLES LIKE '%master%'))});
+  map {$dbh->do(qq(DROP TABLE IF EXISTS $_))} @tables;
+  map {$dbh->do(qq(DROP VIEW IF EXISTS $_))} @tables;
+  cleanup_ur($dbh) unless $keep_ur;
+}
+# arg is dbh, autodb, or babel. clean up intermediate tables created en route to ur
 sub cleanup_ur {t::FullOuterJoinTable->cleanup(@_) }
 
 ########################################
@@ -406,6 +427,8 @@ sub check_handcrafted_idtypes {
     report_fail($actual->meta eq "meta_$suffix","$label object $i: meta") or return 0;
     report_fail($actual->format eq "format_$suffix","$label object $i: format") or return 0;
     report_fail($actual->sql_type eq "VARCHAR(255)","$label object $i: sql_type") or return 0;
+    report_fail(as_bool($actual->internal)==0,"$label object $i: internal") or return 0;
+    report_fail(as_bool($actual->external)==1,"$label object $i: external") or return 0;
     if ($mature) {
       check_object_basics($actual->babel,'Data::Babel','test',"$label object $i babel");
       check_object_basics($actual->master,'Data::Babel::Master',
@@ -591,10 +614,25 @@ sub load_handcrafted_masters {
   for my $name (qw(type_001_master type_002_master)) {
     load_master($babel,$name,$data->$name->data);
   }
-  # implicit masters have no data
-  for my $name (qw(type_003_master type_004_master)) {
-    load_master($babel,$name);
+  # # NG 12-09-27. loop below no subsumed in load_implicit_masters
+  # # implicit masters have no data
+  # for my $name (qw(type_003_master type_004_master)) {
+  #   load_master($babel,$name);
+  # }
+}
+# NG 12-09-27: added load_implicit_masters and test below
+# must be called after maptables loaded
+sub check_implicit_masters {
+  my($babel,$data,$label,$file,$line)=@_;
+  my $dbh=$babel->dbh;
+  my $ok=1;
+  for my $master (grep {$_->implicit} @{$babel->masters}) {
+    my $name=$master->name;
+    my $correct=prep_tabledata($data->$name->data);
+    my $actual=$dbh->selectall_arrayref(qq(SELECT * FROM $name));
+    $ok&&=cmp_table_quietly($actual,$correct,"$label: $name",$file,$line);
   }
+  report_pass($ok,$label);
 }
 1;
 
@@ -621,13 +659,19 @@ sub _init_self {
   return unless $class eq __PACKAGE__; # to prevent subclasses from re-running this
   my $name=$self->name || $self->name('fulljoin_'.sprintf('%03d',++$seqnum));
 }
-# drop all tables that look like our intermediates
 sub cleanup {
-  my($class,$babel)=@_;
-  my $dbh=defined $babel? $babel->autodb->dbh: Data::Babel->autodb->dbh;
+  my($class,$obj)=@_;
+  my $dbh;
+  if (ref $obj) {$dbh=$obj->isa('DBI::db')? $obj: $obj->dbh;}
+  else {$dbh=Data::Babel->autodb->dbh;}
+
+  # drop all tables that look like our intermediates
   my @tables=@{$dbh->selectcol_arrayref(qq(SHOW TABLES LIKE 'fulljoin_%'))};
   # being a bit paranoid, make sure each table ends with 3 digits
   @tables=grep /\d\d\d$/,@tables;
   map {$dbh->do(qq(DROP TABLE IF EXISTS $_))} @tables;
+
+  # drop ur
+  $dbh->do(qq(DROP TABLE IF EXISTS ur));
 }
 1;

@@ -21,15 +21,15 @@ use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES @CLASS_ATTRIBUTES %SYNONYMS %DEFA
 use base qw(Data::Babel::Base);
 
 # babel, name, id, autodb, log, verbose - methods defined in Base
-@AUTO_ATTRIBUTES=qw(master maptables display_name referent defdb meta format sql_type);
-@OTHER_ATTRIBUTES=qw();
+@AUTO_ATTRIBUTES=qw(master maptables referent defdb meta format sql_type internal);
+@OTHER_ATTRIBUTES=qw(display_name external);
 @CLASS_ATTRIBUTES=qw();
 %SYNONYMS=(perl_format=>'format');
 %DEFAULTS=(maptables=>[]);
 %AUTODB=
   (-collection=>'IdType',
    -keys=>qq(name string,display_name string,referent string,defdb string,meta string,
-             perl_format string,sql_type string));
+             perl_format string,sql_type string,internal string));
    
 Class::AutoClass::declare;
 
@@ -44,6 +44,20 @@ sub connect_master {
 sub add_maptable {push(@{shift->maptables},shift)}
 # degree is number of MapTables containing this IdType
 sub degree {scalar @{shift->maptables}}
+
+our $WARN_INTERNAL=": FOR INTERNAL USE ONLY";
+sub display_name {
+  my $self=shift;
+  my $display_name=@_? $self->{_display_name}=shift: $self->{_display_name};
+  $self->internal? "$display_name$WARN_INTERNAL": $display_name;
+}
+
+# opposite of internal
+sub external {
+  my $self=shift;
+  @_? !$self->internal(!$_[0]): !$self->internal;
+}
+
 
 # NG 10-08-08. sigh.'verbose' in Class::AutoClass::Root conflicts with method in Base
 #              because AutoDB splices itself onto front of @ISA.

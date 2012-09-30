@@ -18,6 +18,7 @@ use DBI;
 
 # open database containing Babel metadata
 my $autodb=new Class::AutoDB(database=>'test');
+cleanup_db($autodb);		# cleanup database from previous test
 
 # try to get existing Babel from database
 my $babel=old Data::Babel(name=>'test',autodb=>$autodb);
