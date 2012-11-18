@@ -1,56 +1,41 @@
 use t::lib;
 use t::runtests;
 use t::util;
-use Test::More;
+use Carp;
 use Getopt::Long;
+use Test::More;
+use Text::Abbrev;
 use strict;
+
+# NOT YET PORTED TO NEW 050.star TESTS
 
 # if --developer set, run full test suite. else just a short version
 our %OPTIONS;
 Getopt::Long::Configure('pass_through'); # leave unrecognized options in @ARGV
-GetOptions (\%OPTIONS,qw(developer));
+GetOptions (\%OPTIONS,qw(user_type=s));
+our %user_type=abbrev qw(installer developer);
+$OPTIONS{user_type}='installer' unless defined $OPTIONS{user_type};
+my $user_type=$user_type{$OPTIONS{user_type}} ||
+  confess "Invalid user_type option $OPTIONS{user_type}";
 
-# 010.star, 020.chain are obsolete -- 030.tree covers them. 
-#   but, since they work, why not include them...
-my @files;
+my $subtestdir=subtestdir;
+opendir(DIR,$subtestdir) or confess "Cannot read subtest directory $subtestdir: $!";
+my @mainfiles=sort grep /^[^.].*\.t$/,readdir DIR;
+closedir DIR;
+my @ops=qw(translate count);
+my @db_types=$user_type eq 'developer'? qw(binary staggered basecalc): qw(binary);
+my @graph_types=$user_type eq 'developer'? qw(star chain tree): qw(star);
 
-unless ($OPTIONS{developer}) {
-  @files=
-    ('translate.010.star.t staggered 4',
-     'translate.010.star.t binary 4',
-     'translate.020.chain.t staggered 4',
-     'translate.020.chain.t binary 4',);
-} else {
-  @files=
-    ('translate.010.star.t staggered',
-     'translate.010.star.t binary',
-     'translate.020.chain.t staggered',
-     'translate.020.chain.t binary',
-     'translate.030.tree.t staggered chainlike 2 7',
-     'translate.030.tree.t staggered starlike 2 7',
-     'translate.030.tree.t binary chainlike 2 7',
-     'translate.030.tree.t binary starlike 2 7',
-     'translate.030.tree.t staggered chainlike 1 6',
-     'translate.030.tree.t binary chainlike 1 6',
-     'translate.030.tree.t staggered chainlike 6 6',
-     'translate.030.tree.t staggered starlike 6 6',
-     'translate.030.tree.t binary chainlike 6 6',
-     'translate.030.tree.t binary starlike 6 6',
-     'translate.030.tree.t staggered chainlike 3 6',
-     'translate.030.tree.t staggered starlike 3 6',
-     'translate.030.tree.t binary chainlike 3 6',
-     'translate.030.tree.t binary starlike 3 6',
-     'translate.030.tree.t staggered chainlike 3 8 1',
-     'translate.030.tree.t staggered starlike 3 8 1',
-     'translate.030.tree.t binary chainlike 3 8 1',
-     'translate.030.tree.t binary starlike 3 8 1',
-     'translate.030.tree.t staggered chainlike 4 8 1',
-     'translate.030.tree.t staggered starlike 4 8 1',
-     'translate.030.tree.t binary chainlike 4 8 1',
-     'translate.030.tree.t binary starlike 4 8 1',
-    );
-}
-my $ok=runtests {testcode=>1,details=>1,exact=>1},@files;
-
+my @testfiles;
+for my $op (@ops) {
+  for my $db_type (@db_types) {
+    for my $graph_type (@graph_types) {
+      push(@testfiles,
+	   map {my $test="$_ --op $op";
+		$test.=" --db_type $db_type --graph_type $graph_type --user_type $user_type" unless $user_type eq 'installer';
+		$test}
+	   @mainfiles);
+    }}}
+my $ok=runtests {details=>1,nested=>1,testdir=>scriptbasename},@testfiles;
 ok($ok,script);
 done_testing();

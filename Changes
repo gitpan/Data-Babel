@@ -1,13 +1,26 @@
 Revision history for Data-Babel
 
-1.10_05 2012-mm-dd
+1.10_06 2012-mm-dd
 	Added orthology mapping and changed 'translate' to use it
 
-1.10_04 2012-11-xx
+1.10_05 2012-11-xx
 	New features
 	  histories (Master objects)
 	  'validate' method
+          'validate' option for 'translate' and 'count'
 ----------
+1.10_04 2012-11-18
+	Only changes are to tests
+	Refactored 04x series in preparation for histories and 'validate'
+	  04x subtests can test 'translate' or 'count'
+	  044.count removed from distribution
+	Refactored 05x series in preparation for histories and 'validate'
+	  000 subtest creates all graph types and db types
+	  other subtests test specific features against db created by 000
+	  subtests can test 'translate' or 'count' w/ and w/o filters
+	  06x series merged into 05x as 'basecalc' db type
+	  06x tests removed from distribution
+
 1.10_03 2012-09-30
 	New features
 	  internal id types
@@ -16,7 +29,6 @@ Revision history for Data-Babel
 1.10_02 2012-09-26
 	New features
           Improved semantics for undefs in filters
-	  'create_masters' - correct name TBD
 	  'count' method
 	Bug fixes
 	  'translate' with empty input_ids would sometimes return NULL id

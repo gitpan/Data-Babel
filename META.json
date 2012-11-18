@@ -28,6 +28,7 @@
             "FindBin" : 0,
             "Getopt::Long" : "2.13",
             "Graph" : "0.91",
+            "Hash::AutoHash" : "1.15",
             "Hash::AutoHash::Args" : "1.14",
             "Hash::AutoHash::MultiValued" : "1.14",
             "List::MoreUtils" : "0.09",
@@ -37,7 +38,7 @@
             "Set::Scalar" : "1.22",
             "Storable" : "2.16",
             "TAP::Harness" : "3.12",
-            "Test::Deep" : "0.098",
+            "Test::Deep" : "0.11",
             "Test::More" : "0.88",
             "Text::Abbrev" : "1.01"
          }
@@ -69,7 +70,7 @@
    "provides" : {
       "Data::Babel" : {
          "file" : "lib/Data/Babel.pm",
-         "version" : "1.10_03"
+         "version" : "1.10_04"
       },
       "Data::Babel::Base" : {
          "file" : "lib/Data/Babel/Base.pm",
@@ -110,5 +111,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.10_03"
+   "version" : "1.10_04"
 }

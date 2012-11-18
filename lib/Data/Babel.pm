@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.10_03';
+our $VERSION='1.10_04';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -95,7 +95,7 @@ sub _make_objects {
   @_=@{$_[0]} if 'ARRAY' eq ref $_[0]; # flatten ARRAY
   my @objects;
   for (@_) {
-    push(@objects,$_),next if UNIVERSAL::isa($_,$class);
+    push(@objects,$_),next if ref($_) && $_->isa($class);
     # else let Config handle it
     push(@objects,@{new Data::Babel::Config(file=>$_)->objects($class)});
   }
@@ -115,8 +115,10 @@ sub translate {
   my $self=shift;
   my $args=new Hash::AutoHash::Args(@_);
   # NG 11-01-21: do arg checking here
-  my $missing_args=join(', ',grep {!$args->$_} qw(input_idtype output_idtypes));
-  confess "Required argument(s) $missing_args missing" if $missing_args;
+  # NG 12-10-31: output_idtypes not really required. in any case, it can be empty
+  # my $missing_args=join(', ',grep {!$args->$_} qw(input_idtype output_idtypes));
+  confess "Required argument input_idtype missing" unless $args->input_idtype;
+  $args->output_idtypes([]) unless defined $args->output_idtypes;
   my $ids_args=grep {$args->$_} qw(input_ids input_ids_all);
   # NG 12-08-22: okay to omit input_ids; same as input_ids_all=>1
   # confess "At least one of input_ids or input_ids_all must be set" if $ids_args==0;
@@ -355,7 +357,7 @@ sub show {
 }
 # can be called as function or method
 sub show_graph {
-  my $graph=UNIVERSAL::isa($_[0],'Graph')? $_[0]: $_[1];
+  my $graph=ref($_[0]) && $_[0]->isa('Graph')? $_[0]: $_[1];
   print '  ',join("\n  ",map {_edge_str($graph,$_)} _sort_edges($graph->edges)),"\n";
 }
 sub _sort_edges {
@@ -394,7 +396,7 @@ sub check_contents {confess "check_contents NOT YET IMPLEMENTED"};
 # can be called as function or method. $root is a maptable or master
 my %seen;
 sub traverse {
-  my($root,$graph)=UNIVERSAL::isa($_[1],'Graph')? @_[0,1]: @_[1,2];
+  my($root,$graph)=ref($_[0]) && $_[0]->isa('Graph')? @_[0,1]: @_[1,2];
   %seen=($root=>$root);
   _traverse($root,$graph);
 }
@@ -431,13 +433,13 @@ sub _name2object {
 sub _2idtype {
   my $self=shift;
   if (ref $_[0]) {
-    confess "Invalid idtype $_[0]" unless UNIVERSAL::isa($_[0],'Data::Babel::IdType');
+    confess "Invalid idtype $_[0]" unless $_[0]->isa('Data::Babel::IdType');
     return $_[0];
   }
   # else may be name or stringified ref
   unless ($_[0]=~/^Data::Babel::IdType=HASH\(0x\w+\)$/) {
     my $idtype=$self->name2idtype($_[0]);
-    confess "Invalid idtype $_[0]" unless UNIVERSAL::isa($idtype,'Data::Babel::IdType');
+    confess "Invalid idtype $_[0]" unless ref($idtype) && $idtype->isa('Data::Babel::IdType');
     return $idtype;
   }
   # code to convert stringified ref adapted from http://stackoverflow.com/questions/1671281/how-can-i-convert-the-stringified-version-of-array-reference-to-actual-array-ref?rq=1
@@ -486,7 +488,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.10_03
+Version 1.10_04
 
 =head1 SYNOPSIS
 
@@ -572,7 +574,7 @@ The main components of a Data::Babel object are
 
 =item * a master list of valid values for the type, and 
 
-=item * optionally, a history mapping old values to current ones [NOT YET IMPLEMENTED]
+=item * optionally, a history mapping old values to current ones
 
 =back
 
@@ -589,6 +591,16 @@ provides a mapping over a subset of the Babel's IdTypes; the ensemble
 of MapTables must, of course, cover all the IdTypes.  The ensemble of
 MapTables must also be non-redundant as explained in L<Technical
 details>.
+
+MapTables must always contain current identifiers, even for IdTypes
+that have histories (more precisely, for IdTypes whose Masters have
+histories). The query or program that loads the database is
+responsible for mapping old identifiers to current ones (presumably
+via the history).
+
+'translate' checks the input IdType to see if its Master has history
+information. If so, 'translate' automatically applies the history to
+all input ids.  It does the same for filters.
 
 You need not explicitly define Masters for all IdTypes; Babel
 will create 'implicit' Masters for any IdTypes lacking explicit
@@ -660,9 +672,32 @@ Master
   QUERY
 
 The section name is the Master name; the name of the IdType is the
-same but without the '_master'. The parameters are used by our
-database construction procedure and may not be useful in other
-settings.
+same but without the '_master'. The 'inputs' and 'query' parameters
+are used by our database construction procedure and may not be useful
+in other settings.
+
+The next example illustrates a Master that includes history information.
+
+  [gene_entrez_master]
+  inputs=<<INPUTS
+  MainData/GeneInformation MainData/GeneHistory
+  INPUTS
+  query=<<QUERY
+  SELECT old_locus_link_eid AS _ANY_gene_entrez, locus_link_eid AS gene_entrez
+  FROM gene_information LEFT OUTER JOIN gene_history 
+    ON locus_link_eid=new_locus_link_eid
+  QUERY
+  history=1
+
+A Master without history is implemented as a one column table whose
+column has the same name as the IdType.
+
+A Master with history is implemented as a two column table: one column
+has the same name as the IdType and the other has the prefix '_X_'
+prepended to the IdType. The '_X_' column contains ids that were valid
+in the past or are valid now. Each row maps the '_X_' id to its
+current value, if any, or NULL. For ids that are valid now, the table
+contains a row in which the '_X_' and current versions are the same.
 
 MapTable
 
@@ -703,29 +738,34 @@ construction procedure and may not be useful in other settings.
 
 =head2 Input ids that do not connect to any outputs
 
-The 'translate' method does not return any output for input
-identifiers that do not connect to any identifiers of the desired
-output types.  In other words, 'translate' never returns output rows
-in which the output columns are all NULL.
+By default, the 'translate' method does not return any output for
+input identifiers that do not connect to any identifiers of the
+desired output types; these are output rows in which the output
+columns are all NULL. You can instruct 'translate' to include these
+rows in the result by setting the 'validate' option.
 
 An input identifier can fail to connect for two reasons: 
 
 =over 2
 
-=item 1. The identifier does not exist in the Master table for the
-input IdType; this generally means that the input id is not valid.
+=item 1. The identifier is not valid, in other words, it does not
+exist in the Master table for the input IdType.
 
-=item 2. The identifier exists in the Master table for the input
-IdType (hence is valid), but doesn't doesn't connect to any ids of the
-desired output types. This is normal
+=item 2. The identifier is valid but doesn't doesn't connect to any
+ids of the desired output types. This is normal.
 
 =back
 
+If you set the 'validate' option, the output will contain at least one
+row for each input identifier, and an additional column that indicates
+whether each input identifier is valid.
+
 If no output IdTypes are specified, 'translate' returns a row
 containing one element, namely, the input identifier, for each input
-id that exists in the corresponding Master table.  This is the only
-way at present for the application to distinguish non-existent ids
-from ones that exist but don't connect.
+id that exists in the corresponding Master table. If the 'validate'
+option is set, the output will contain one row for each input
+identifier; this is essentially a (possibly re-ordered) copy of the
+input list with duplicates removed.
 
 =head2 Technical details
 
@@ -841,32 +881,57 @@ The available class attributes are
                       limit=>100)
  Function: Translate the input ids to ids of the output types
  Returns : table represented as an ARRAY of ARRAYS. Each inner ARRAY is one row
-           of the result. The first element of each row is an input id; the rest
-           are outputs in the same order as output_idtypes
+           of the result. The first element of each row is an input id. If the
+           validate option is set, the second element of each row indicates
+           whether the input id is valid. The rest are outputs in the same order
+           as output_idtypes
  Args    : input_idtype   name of Data::Babel::IdType object or object
-           input_ids      ARRAY of ids to be translated or a single id. If 
-                          absent or undef, all ids of the input type are 
-                          translated. If an empty array, ie, [], no ids are 
-                          translated and the result will be empty.
-           input_ids_all  if true, all ids of the input type are translated. 
-                          Equivalent to omitting input_ids or setting it to
-                          undef but more explicit.
+           input_ids      id or ARRAY of ids to be translated. If absent or
+                          undef, all ids of the input type are translated. If an
+                          empty array, ie, [], no ids are translated and the 
+                          result will be empty.
+           input_ids_all  boolean. If true, all ids of the input type are
+                          translated. Same as omitting input_ids or setting it
+                          to undef but more explicit.
            filters        HASH or ARRAY of conditions limiting the output; see 
                           below.
            output_idtypes ARRAY of names of Data::Babel::IdType objects or
                           objects
-           limit          maximum number of rows to retrieve (optional)
-           count          if true, return number of output rows rather than the 
-                          rows themselves. Equivalent to 'count' method.
- Notes   : Duplicate output columns are retained. 
-           Does not return output rows in which the output columns are all NULL.
-           If no output idtypes are specified, returns rows for which the input
-           id exists in the corresponding Master table.
-           The order of output rows is arbitrary.
-           If input_ids is absent or undef, all ids of the input type are 
-           translated.
-           If input_ids is an empty ARRAY, ie, [], the result will be empty.
-           It is an error to set both input_ids and input_ids_all.
+           validate       boolean. If true, the output will contain at least one
+                          row for each input id and an additional column 
+                          indicating whether the input id is valid.
+           limit          maximum number of rows to retrieve
+           count          boolean. If true, return number of output rows rather 
+                          than the rows themselves. Equivalent to 'count'
+                          method.
+Notes
+
+=over 2
+
+=item * 'translate' retains duplicate output columns.
+
+=item * The order of output rows is arbitrary.
+
+=item * If input_ids is absent or undef, it translates all ids of the
+input type.
+
+=item * If input_ids is an empty ARRAY, ie, [], the result will be
+empty.
+
+=item * It is an error to set both input_ids and input_ids_all.
+
+=item * Input and filter ids can be old (valid in the past) or current
+(valid now). Output ids are always current.
+
+=item * By default, 'translate' does not return rows in which the
+output columns are all NULL. Setting 'validate' changes this and
+ensures that every input id will appear in the output.
+
+=item * If no output idtypes are specified, the output will contain
+one row for each valid input id (by default) or one row for each id
+whether valid or not (if 'validate' is set). 
+
+=back
 
 =head3 Filters
 
@@ -911,10 +976,23 @@ filter type is NULL.  For example,
                     output_idtypes=>[qw(gene_symbol)])
 
 generates a table of all Entrez Gene ids and gene symbols which either
-appear in KEGG patway 4610 or appear in no KEGG pathway.
+appear in KEGG pathway 4610 or appear in no KEGG pathway.
 
 CAUTION: undef has opposite semantics depending on whether it's the
 only value for a filter type or whether it's one of several.
+
+=head3 Histories
+
+'translate' automatically applies histories, when they exist, to input
+and filter ids. In other words, input and filter ids can be ones that
+were valid in the past but are not valid now. Output ids, however, are
+always current.
+
+CAUTION: If the input type is also used as an output, the result can
+contain rows in which the output id does not equal the input id. This
+will occur if the input id is old and is mapped to a different current
+value.  Likewise, if a filter type is used as an output, the result
+can contain rows in which the output id does not match the filter.
 
 =head2 count
 
@@ -929,6 +1007,61 @@ only value for a filter type or whether it's one of several.
  Args    : same as 'translate'
 
 'count' is a wrapper for 'translate' that sets the 'count' argument to a true value.
+
+=head2 validate
+
+ Title   : validate 
+ Usage   : $table=$babel->validate
+                     (input_idtype=>'gene_entrez',
+                      input_ids=>[1,2,3])
+ Function: Tell which input ids are valid now or in the past, and the mapping 
+           from old to current values
+ Returns : table represented as an ARRAY of ARRAYS. Each inner ARRAY is one row
+           of the result. The elements of each row are
+             0) input id as given
+             1) current value of the id or undef if it has no current value; may
+                be the same as the original id
+             2) validity status. 1 for valid; 0 for invalid
+             3) name of IdType
+ Args    : input_idtype   name of Data::Babel::IdType object or object or ARRAY
+                          of names or IdType objects. If absent or undef, checks
+                          all IdTypes.
+           input_idtypes  synonym for input_idtype
+           input_ids      id or ARRAY of ids to be validated. If absent or 
+                          undef, returns all valid ids of the input types. If an
+                          empty array, ie, [], no ids are validated and the 
+                          result will be empty.
+           input_ids_all  Equivalent to omitting input_ids or setting it to
+                          undef but more explicit.
+
+'validate' looks up the given input ids in the Master tables for the
+given input types (or all types if no input types are given), and
+returns a table indicating which ids are valid for which types. For
+types that have history information, the method also indicates the
+current value of the id. For types that have no history, the current
+value will always equal the given id if the id is valid.
+
+'validate' can also retrieve a complete table of valid ids (along with
+history information) for one or more types.
+
+Notes
+
+=over 2
+
+=item * For rows whose validity status is 1 (valid), elements 0 and 1
+(given id and current value) indicate the history: if the elements are
+equal, the given id is current; else if the current value is defined,
+the given id has been replaced by the new one; else the given id was
+valid in the past but has no current value.
+
+=item * For types that have no history, all valid ids are current. If
+the given id is valid, the given id and current value will be equal;
+else the current value will be undef.
+
+=item * For rows whose status is 0 (invalid), element 1 (current
+value) will always be undef.
+
+=back
 
 =head2 show
 
@@ -1130,11 +1263,14 @@ The available class attributes are
 The available object attributes are
 
   name          eg, 'gene_entrez_master' 
-  id            name prefixed with 'master', eg, 'master:::gene_entrez_master'
+  id            name prefixed with 'master::', eg, 'master:::gene_entrez_master'
   idtype        Data::Babel::IdType object for which this is the Master
   implicit      boolean indicating whether Master is implicit
   explicit      opposite of implicit
   view          boolean indicating whether Master is implemented as a view
+  history       boolean indicating whether Master contains history information.
+                optional. if absent, the software determines this by examining 
+                the database table for the object
   inputs, namespace, query
                 used by our database construction procedure
 

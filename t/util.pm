@@ -3,20 +3,17 @@ package t::util;
 use Carp;
 use FindBin;
 use File::Basename qw(fileparse);
+use File::Spec;
 use Cwd qw(cwd);
 use Test::More;
-use Test::Deep;
-# Test::Deep doesn't export cmp_details, deep_diag until recent version (0.104)
-# so we import them "by hand"
-*cmp_details=\&Test::Deep::cmp_details;
-*deep_diag=\&Test::Deep::deep_diag;
+use Test::Deep qw(cmp_details deep_diag methods);
 use Exporter();
 use strict;
 
 our @ISA=qw(Exporter);
-our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode rootpath
+our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode subtestdir rootpath
 	       as_bool flatten
-	       cmp_quietly cmp_attrs report report_pass report_fail
+	       is_quietly cmp_quietly cmp_attrs report report_pass report_fail
 	     );
 our($SCRIPT,$SCRIPTPATH,$SCRIPTBASENAME,$SCRIPTCODE,$ROOTPATH);
 sub script {$SCRIPT or (($SCRIPT,$SCRIPTPATH)=fileparse($0) and $SCRIPT);}
@@ -25,10 +22,17 @@ sub scriptfullpath {$FindBin::Bin}
 sub scriptbasename {$SCRIPTBASENAME or 
 		      (($SCRIPTBASENAME)=fileparse($0,qw(.t)) and $SCRIPTBASENAME);}
 sub scriptcode {$SCRIPTCODE or (($SCRIPTCODE)=script=~/\.(\w+)\.t$/)[0];}
+sub subtestdir {File::Spec->catdir(scriptpath,scriptbasename)}
 sub rootpath {$ROOTPATH or $ROOTPATH=cwd}
 
 sub as_bool {$_[0]? 1: 0}
 sub flatten {map {'ARRAY' eq ref $_? @$_: $_} @_}
+
+# like is but reports errors the way we want
+sub is_quietly {
+  my($actual,$correct,$label,$file,$line)=@_;
+  report_fail($actual eq $correct,"$label: expected $correct, got $actual",,$file,$line);
+}
 
 # like cmp_deeply but reports errors the way we want
 sub cmp_quietly {

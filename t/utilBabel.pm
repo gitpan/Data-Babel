@@ -2,7 +2,7 @@ package t::utilBabel;
 use t::util;
 use Carp;
 use Test::More;
-use Test::Deep;
+use Test::Deep qw(cmp_details deep_diag subbagof);
 use List::Util qw(min);
 use List::MoreUtils qw(uniq);
 use Hash::AutoHash::Args;
@@ -15,8 +15,11 @@ our @EXPORT=
   (@t::util::EXPORT,
    qw(check_object_basics sort_objects
       prep_tabledata load_maptable load_master load_ur 
-      select_ur filter_ur count_ur select_ur_sanity cleanup_db cleanup_ur
+      select_ur filter_ur count_ur select_ur_sanity 
+      check_table check_database_sanity check_maptables_sanity check_masters_sanity 
+      cleanup_db cleanup_ur
       cmp_objects cmp_objects_quietly cmp_table cmp_table_quietly
+      cmp_op cmp_op_quietly
       check_handcrafted_idtypes check_handcrafted_masters check_handcrafted_maptables
       check_handcrafted_name2idtype check_handcrafted_name2master check_handcrafted_name2maptable
       check_handcrafted_id2object check_handcrafted_id2name check_implicit_masters
@@ -238,7 +241,8 @@ sub filter_ur {
     if (@$ids) {
       my(@table1,@table2);
       my @defined_ids=grep {defined $_} @$ids;
-      my $pattern=join('|',@defined_ids);
+      # NG 12-10-29: changed pattern to match entire field
+      my $pattern=join('|',map {"\^$_\$"} @defined_ids);
       $pattern=qr/$pattern/;
       @table1=grep {$_->[$col]=~/$pattern/} @$table if @defined_ids;
       @table2=grep {!defined $_->[$col]} @$table if @defined_ids!=@$ids;
@@ -312,6 +316,69 @@ sub count_ur {
   my $table=select_ur(@_);
   scalar @$table;
 }
+# NG 12-11-18: check that table exists and is non-empty
+sub check_table {
+  my($babel,$table,$label)=@_;
+  my $dbh=$babel->autodb->dbh;
+  my $ok=1;
+  my $sql=qq(SHOW TABLES LIKE '$table');
+  my $tables=$dbh->selectcol_arrayref($sql);
+  $ok&&=report_fail(!$dbh->err,"$label database query failed: ".$dbh->errstr) or return 0;
+  $ok&&=report_fail(scalar @$tables,"$label table $table does not exist") or return 0;
+  $ok&&=cmp_quietly($tables,[$table],"$label SHOW TABLES got incorrect result") or return 0;
+  my $sql=qq(SELECT COUNT(*) FROM $table);
+  my($count)=$dbh->selectrow_array($sql);
+  $ok&&=report_fail(!$dbh->err,"$label database query failed: ".$dbh->errstr) or return 0;
+  report_fail($count,"$label table $table is empty");
+}
+# NG 12-11-18: check database for sanity
+sub check_database_sanity {
+  my($babel,$label,$num_maptables)=@_;
+  my $ok=1;
+  $ok&&=check_maptables_sanity($babel,"$label check maptables",$num_maptables);
+  $ok&&=check_masters_sanity($babel,"$label check masters");
+  $ok;
+}
+
+# NG 12-11-18: check maptables for sanity
+sub check_maptables_sanity {
+  my($babel,$label,$num_maptables)=@_;
+  my $dbh=$babel->autodb->dbh;
+  my $ok=1;
+  my @maptables=@{$babel->maptables};
+  $ok&&=
+    is_quietly($num_maptables,scalar @maptables,"$label BAD NEWS: number of maptables wrong!!")
+      or return 0;
+  for my $table (map {$_->name} @maptables) {
+    $ok&&=check_table($babel,$table,"$label MapTable $table");
+  }
+  $ok;
+}
+# NG 12-11-18: check master tables for sanity
+sub check_masters_sanity {
+  my($babel,$label)=@_;
+  my $dbh=$babel->autodb->dbh;
+  my $ok=1;
+  my @maptables=@{$babel->maptables};
+  for my $maptable (@maptables) {
+    my $maptable_name=$maptable->name;
+    my @idtypes=@{$maptable->idtypes};
+    for my $idtype (@idtypes) {
+      my $idtype_name=$idtype->name;
+      my $master=$idtype->master;
+      my $master_name=$master->name;
+      $ok&&=is_quietly
+	($master_name,"${idtype_name}_master", "$label BAD NEWS: master name wrong!!") 
+	  or return 0;
+      my $sql=qq(SELECT $idtype_name FROM $maptable_name WHERE $idtype_name NOT IN 
+                  (SELECT $idtype_name FROM $master_name));
+      my $missing=$dbh->selectcol_arrayref($sql);
+      $ok&&=report_fail(!$dbh->err,"$label database query failed: ".$dbh->errstr) or return 0;
+      $ok&&=report_fail(@$missing==0,"$label some ids in $maptable_name missing from $master_name; here are a few: ".join(', ',@$missing[0..2])) or return 0;
+    }
+  }
+  $ok;
+}
 
 # cmp ARRAYs of Babel component objects (anything with an 'id' method will work)
 # like cmp_bag but 
@@ -352,6 +419,36 @@ sub cmp_table_quietly {
     return cmp_quietly($actual,subbagof(@$correct),$label,$file,$line);
   }
   1;
+}
+# cmp_op & cmp_op_quietly used for merged translate/count tests
+# $actual can be table or count
+# $correct always table
+# $op is 'translate' or 'count'
+sub cmp_op {
+  my($actual,$correct,$op,$label,$file,$line,$limit)=@_;
+  if ($op eq 'translate') {
+    cmp_table($actual,$correct,$label,$file,$line,$limit);
+  } elsif ($op eq 'count') {
+    $correct=@$correct;
+    $correct=min($correct,$limit) if defined $limit;
+    my($ok,$details)=cmp_details($actual,$correct);
+    report($ok,$label,$file,$line,$details);
+  } else {
+    confess "Unknow op $op: should be 'translate' or 'count'";
+  }
+}
+
+sub cmp_op_quietly {
+  my($actual,$correct,$op,$label,$file,$line,$limit)=@_;
+  if ($op eq 'translate') {
+    cmp_table_quietly($actual,$correct,$label,$file,$line,$limit);
+  } elsif ($op eq 'count') {
+    $correct=@$correct;
+    $correct=min($correct,$limit) if defined $limit;
+    cmp_quietly($actual,$correct,$label,$file,$line);
+  } else {
+    confess "Unknow op $op: should be 'translate' or 'count'";
+  }
 }
 
 # sort subroutine: $a, $b are ARRAYs of strings. should be same lengths. cmp element by element
