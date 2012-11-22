@@ -1,5 +1,5 @@
 ########################################
-# setup databse -- setup star database. 'staggered' & 'binary' data
+# setup database
 # many kinds of tree structures
 #   arity      - fanout, eg, 2 for binary
 #   link_type  - starlike   idtypes connect all nodes at each level
@@ -11,7 +11,6 @@ use t::lib;
 use t::utilBabel;
 use translate;
 use Test::More;
-use Text::Abbrev;
 use List::Util qw(min);
 use Graph::Directed;
 use Hash::AutoHash qw(autohash_get);
@@ -67,7 +66,9 @@ for ($graph->vertices) {	  # make link IdTypes
 					    sql_type=>$sql_type));
     }}}
 # NG 12-11-18: make explicit Masters for even-numbered IdTypes
- @masters=map {new Data::Babel::Master(name=>$_.'_master')} grep {my($num)=$_=~/_(\d+)$/; $num%2==0} map {$_->name} @idtypes;
+# NG 12-11-21: all explicit masters have histories if option set
+@masters=map {new Data::Babel::Master(name=>$_.'_master',history=>$OPTIONS->history)} 
+  grep {my($num)=$_=~/_(\d+)$/; $num%2==0} map {$_->name} @idtypes;
 
 for ($graph->vertices) {	  # make MapTables
   my $maptable_num=sprintf('%03d',$_);

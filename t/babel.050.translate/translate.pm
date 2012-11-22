@@ -16,15 +16,13 @@ use Data::Babel;
 use strict;
 our @ISA=qw(Exporter);
 
-our @EXPORT=qw($OPTIONS %OPTIONS @OPTIONS $OP $autodb $babel
+our @EXPORT=qw($OPTIONS %OPTIONS @OPTIONS $OP $autodb $babel $dbh
 	       @filter_subsets @output_subsets 
 	       maptable_data master_data idtype2ids
                init doit make_filter);
+our($OPTIONS,%OPTIONS,@OPTIONS,$OP,$autodb,$babel,$dbh,@filter_subsets,@output_subsets);
 
-our($OPTIONS,%OPTIONS,@OPTIONS,$OP,$autodb,$babel,$dbh,
-    @filter_subsets,@output_subsets);
-
-our @OPTIONS=qw(op=s filter history validate
+@OPTIONS=qw(op=s history validate
 		user_type=s db_type=s graph_type=s link_type=s basecalc=i
 		max_filters=i max_outputs=i num_maptables=i arity=i);
 our %op=abbrev qw(translate count);
@@ -40,29 +38,28 @@ our %DEFAULTS=
    db_type=>'binary',
    graph_type=>'star',
    basecalc=>4,
-   "star$;installer"=>{max_outputs=>2,max_filters=>2,
+   "star$;installer"=>{max_outputs=>2,max_filters=>2,db_type=>'basecalc',
 		       link_type=>'starlike',arity=>4,num_maptables=>4},
    
-   "star$;developer"=>{max_outputs=>2,max_filters=>3,
-		       link_type=>'starlike',arity=>6,num_maptables=>7},
+   "star$;developer"=>{max_outputs=>2,max_filters=>3,db_type=>'basecalc',
+		       link_type=>'starlike',arity=>4,num_maptables=>4},
 
-   "chain$;installer"=>{max_outputs=>2,max_filters=>2,
+   "chain$;installer"=>{max_outputs=>2,max_filters=>2,db_type=>'binary',
 			link_type=>'chainlike',arity=>1,num_maptables=>4},
 
-   "chain$;developer"=>{max_outputs=>2,max_filters=>3,
-			link_type=>'chainlike',arity=>1,num_maptables=>7},
+   "chain$;developer"=>{max_outputs=>2,max_filters=>3,db_type=>'binary',
+			link_type=>'chainlike',arity=>1,num_maptables=>4},
 
-   "tree$;installer"=>{max_outputs=>1,max_filters=>1,
+   "tree$;installer"=>{max_outputs=>1,max_filters=>1,db_type=>'staggered',
 		       link_type=>'starlike',arity=>2,num_maptables=>5},
    
-   "tree$;developer"=>{max_outputs=>2,max_filters=>3,
+   "tree$;developer"=>{max_outputs=>2,max_filters=>2,db_type=>'staggered',
 		       link_type=>'starlike',arity=>2,num_maptables=>7},
   );
 
 sub init {
   my $setup=shift @_;
   $OPTIONS=get_options();
-
   unless ($setup) {
     $autodb=new Class::AutoDB(database=>'test'); 
     isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
@@ -90,7 +87,7 @@ sub get_options {
   GetOptions(\%OPTIONS,@OPTIONS);
   # set defaults that don't depend on graph_type x user_type
   map {$OPTIONS{$_}=$DEFAULTS{$_} unless defined $OPTIONS{$_}} 
-    qw(op user_type db_type graph_type basecalc);
+    qw(op user_type graph_type basecalc);
   # expand abbreviations
   for my $option (qw(op user_type db_type graph_type link_type)) {
     next unless defined $OPTIONS{$option};
@@ -102,7 +99,7 @@ sub get_options {
   map {$OPTIONS{$_}=$defaults{$_} unless exists $OPTIONS{$_}} keys %defaults;
   
   # set special-case defaults
-  $OPTIONS{filter}=1 if !defined($OPTIONS{filter}) && scriptbasename=~/filter/;
+  # $OPTIONS{filter}=1 if !defined($OPTIONS{filter}) && scriptbasename=~/filter/;
 
   $OP=$OPTIONS{op};
   $OPTIONS=new Hash::AutoHash %OPTIONS;
@@ -167,25 +164,33 @@ sub maptable_data {
   push(@data,[map {/^leaf/? "$_/multi_001": "$_/multi"} @idtype_names]);
   \@data;
 }
-# arg can be leaf number or Master object
+# arg is Master object
 sub master_data {
-  my $name=ref $_[0]? $_[0]->idtype->name: 'leaf_'.sprintf('%03d',$_[0]);
+  # my $name=ref $_[0]? $_[0]->idtype->name: 'leaf_'.sprintf('%03d',$_[0]);
+  confess "obsolete call to master_data. arg must be Master object, not $_[0]" unless ref $_[0];
+  my $name=$_[0]->idtype->name;
   my @series=data_series();	# make data series for $OPTIONS->db_type
   # my @series=$OPTIONS->db_type eq 'staggered'? staggered_series(): binary_series();
-  my @extras=(qw(none_000 none_001),$name=~/^leaf/? qw(multi_000 multi_001): qw(multi));
-  my @data=map {"${name}/$_"} (@series,@extras);
+  # my @extras=(qw(none_000 none_001),$name=~/^leaf/? qw(multi_000 multi_001): qw(multi));
+  my @multis=$name=~/^leaf/? qw(multi_000 multi_001): qw(multi);
+  my @nones=qw(none_000 none_001);
+  my @data=!$OPTIONS->history? (map {"${name}/$_"} (@series,@multis,@nones)):
+    ((map {["_x_${name}/$_","${name}/$_"]} (@series,@multis)),
+     map {["_x_${name}/$_",'NULL']} @nones);
   # wantarray? @data: \@data;
   \@data;
 }
 # generate input ids for IN clause. many don't match anything.
+# NG 12-11-21: add histories
 # arg is IdType
 sub idtype2ids {
   my($idtype)=@_;
   # master_data($idtype);
   my $name=$idtype->name;
+  my $prefix=!$OPTIONS->history? $name: "_x_$name";
   my @series=data_series();	# make data series for $OPTIONS->db_type
   my @extras=(qw(none_000 none_001),$name=~/^leaf/? qw(multi_000 multi_001): qw(multi));
-  my @data=map {"${name}/$_"} (@series,@extras);
+  my @data=map {"${prefix}/$_"} (@series,@extras);
   \@data;
 }
 
@@ -244,6 +249,7 @@ sub make_filter {
 	choose_filter_ids($table,$i+1,$multi_ok,$fraction):
 	  # in basecalc db, each digit selects approx 1/basecalc rows
 	  [$filters->[$i]->name.'/d_0']; # any digit would do
+    @$filter_ids=map {"_x_$_"} @$filter_ids if $filters->[$i]->history;
     $filter->{$filters->[$i]->name}=$filter_ids;
     $table=grep_table($table,$i+1,$filter_ids);
   }

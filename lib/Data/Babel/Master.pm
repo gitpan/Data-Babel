@@ -24,7 +24,7 @@ use base qw(Data::Babel::Base);
 # inputs, namespace, query, view are for Pipeline. 
 #   used here to generate Pipeline Steps for implicit masters
 #   will be needed someday for redundant MapTables
-@AUTO_ATTRIBUTES=qw(idtype implicit view inputs namespace query);
+@AUTO_ATTRIBUTES=qw(idtype implicit history view inputs namespace query);
 @OTHER_ATTRIBUTES=qw(explicit degree);
 @CLASS_ATTRIBUTES=qw();
 %SYNONYMS=(tablename=>'name');

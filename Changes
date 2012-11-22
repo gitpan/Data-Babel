@@ -1,14 +1,21 @@
 Revision history for Data-Babel
 
-1.10_06 2012-mm-dd
+1.20	2013-mm-dd
 	Added orthology mapping and changed 'translate' to use it
 
-1.10_05 2012-11-xx
+1.10_06 2012-11-xx
 	New features
 	  histories (Master objects)
 	  'validate' method
           'validate' option for 'translate' and 'count'
 ----------
+1.10_05 2012-11-22
+	New features
+	  histories (Master objects)
+	Further refactored 04x series in preparation for histories and 'validate'
+	  04x subtests can do filter
+	  042.filter removed from distribution
+
 1.10_04 2012-11-18
 	Only changes are to tests
 	Refactored 04x series in preparation for histories and 'validate'

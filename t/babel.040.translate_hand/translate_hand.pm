@@ -2,69 +2,94 @@ package translate_hand;
 use t::util;
 use t::utilBabel;
 use Carp;
+use File::Spec;
 use Getopt::Long;
+use Hash::AutoHash;
 use List::Util qw(min);
 use Set::Scalar;
 use Test::More;
-use Test::Deep qw(cmp_details deep_diag);
-use Exporter();
+use Text::Abbrev;
 use Class::AutoDB;
 use Data::Babel;
-use Data::Babel::Config;
 use strict;
 our @ISA=qw(Exporter);
 
-our @EXPORT=qw(%OPTIONS @OPTIONS $autodb $babel $data @idtypes $idtypes_subsets @ids
-	       init);
+our @EXPORT=qw($OPTIONS %OPTIONS @OPTIONS $OP $autodb $babel $dbh 
+	       $data @idtypes @idtypes_subsets @filter_subsets @output_subsets @ids
+	       init make_ids empty_result);
+our($OPTIONS,%OPTIONS,@OPTIONS,$OP,$autodb,$babel,$dbh,$data,@idtypes,
+    @idtypes_subsets,@filter_subsets,@output_subsets,@ids);
+@idtypes=qw(type_001 type_002 type_003 type_004);
+@ids=qw(000 001 010 011 100 101 110 111);
+
+@OPTIONS=qw(op=s history validate user_type=s max_ids=i max_filters=i max_outputs=i);
+our %op=abbrev qw(translate count);
+our %user_type=abbrev qw(installer developer);
+# for some options, defaults depend on user_type
+our %DEFAULTS=(op=>'translate',user_type=>'installer',
+	       installer=>{max_ids=>2,max_outputs=>2,max_filters=>2},
+	       developer=>{max_ids=>scalar(@ids),
+			   max_outputs=>scalar(@idtypes),max_filters=>scalar(@idtypes)}
+	      );
+
 sub init {
-  our %OPTIONS; 
-  our @OPTIONS=qw(developer translate count history validate);
-  GetOptions (\%OPTIONS,@OPTIONS);
-  # translate is default
-  $OPTIONS{translate}=1 unless $OPTIONS{count};
+  my $setup=shift @_;
+  $OPTIONS=get_options();
+  my $power_set=Set::Scalar->new(@idtypes)->power_set;
+  @idtypes_subsets=$power_set->members;
+  @filter_subsets=grep {$_->size<=$OPTIONS->max_filters} @idtypes_subsets;
+  @output_subsets=grep {$_->size<=$OPTIONS->max_outputs} @idtypes_subsets;
+  unless ($setup) {
+    $autodb=new Class::AutoDB(database=>'test'); 
+    isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+    # expect 'old' to return the babel
+    $babel=old Data::Babel(name=>'test',autodb=>$autodb);
+    isa_ok($babel,'Data::Babel','sanity test - old Babel returned Babel object');
+    my @idtypes=@{$babel->idtypes};
+    is_quietly(scalar @idtypes,4,'BAD NEWS old Babel has wrong number of idtypes!!');
+    my @maptables=@{$babel->maptables};
+    is_quietly(scalar @maptables,3,'BAD NEWS old Babel has wrong number of maptables!!');
+  } else {			# setup new database
+    $autodb=new Class::AutoDB(database=>'test',create=>1); 
+    isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+    cleanup_db($autodb);		# cleanup database from previous test
+    Data::Babel->autodb($autodb);
+    # rest of setup done by test
+  }
+  $dbh=$autodb->dbh;
+  my $data_ini=!$OPTIONS{history}? 'translate_hand.data.ini': 'translate_hand.data_history.ini';
+  $data=new Data::Babel::Config(file=>File::Spec->catfile(scriptpath,$data_ini))->autohash;
+}
+# returns Hash::AutoHash
+sub get_options {
+  %OPTIONS=%DEFAULTS;
+  GetOptions(\%OPTIONS,@OPTIONS);
+  # expand abbreviations
+  for my $option (qw(op user_type)) {
+    next unless defined $OPTIONS{$option};
+    my %abbrev=eval "\%$option";
+    $OPTIONS{$option}=$abbrev{$OPTIONS{$option}} or confess "illegal value for option $option";
+  }
+  # set defaults that depend on user_type
+  my %defaults=%{$DEFAULTS{$OPTIONS{user_type}}};
+  map {$OPTIONS{$_}=$defaults{$_} unless exists $OPTIONS{$_}} keys %defaults;
+ 
+  # set special-case defaults
+  # $OPTIONS{filter}=1 if !defined($OPTIONS{filter}) && scriptbasename=~/filter/;
 
-  # initialize variables used in most tests
-  our @idtypes=qw(type_001 type_002 type_003 type_004);
-  our $idtypes_subsets=Set::Scalar->new(@idtypes)->power_set;
-  our @ids=qw(000 001 010 011 100 101 110 111);
-
-  # create AutoDB database
-  our $autodb=new Class::AutoDB(database=>'test',create=>1); 
-  isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
-  cleanup_db($autodb);		# cleanup database from previous test
-  Data::Babel->autodb($autodb);
-  my $dbh=$autodb->dbh;
-
-  # create Babel directly from config files. this is is the usual case
-  my $name='test';
-  our $babel=new Data::Babel
-    (name=>$name,
-     idtypes=>File::Spec->catfile(scriptpath,'translate_hand.idtype.ini'),
-     masters=>File::Spec->catfile(scriptpath,'translate_hand.master.ini'),
-     maptables=>File::Spec->catfile(scriptpath,'translate_hand.maptable.ini'));
-  isa_ok($babel,'Data::Babel','sanity test - Babel created from config files');
-
-  # quietly test simple attributes
-  cmp_quietly($babel->name,$name,'sanity test - Babel attribute: name');
-  cmp_quietly($babel->id,"babel:$name",'sanity test - Babel attribute: id');
-  cmp_quietly($babel->autodb,$autodb,'sanity test - Babel attribute: autodb');
-
-  # setup the database
-  our $data=new Data::Babel::Config
-    (file=>File::Spec->catfile(scriptpath,'translate_hand.data.ini'))->autohash;
-  load_handcrafted_maptables($babel,$data);
-  load_handcrafted_masters($babel,$data);
-  $babel->load_implicit_masters;
-  load_ur($babel,'ur');
-
-  # test ur construction for sanity
-  my $correct=prep_tabledata($data->ur->data);
-  my $actual=$dbh->selectall_arrayref(qq(SELECT type_001,type_002,type_003,type_004 FROM ur));
-  cmp_table($actual,$correct,'sanity test - ur construction');
-
-  # test ur selection for sanity
-  my $correct=prep_tabledata($data->ur_selection->data);
-  my $actual=select_ur_sanity(babel=>$babel,urname=>'ur',output_idtypes=>[qw(type_001 type_004)]);
-  cmp_table($actual,$correct,'sanity test - ur selection');
+  $OP=$OPTIONS{op};
+  $OPTIONS=new Hash::AutoHash %OPTIONS;
+}
+# convert idtype & id indexes to ids. if no indexes, convert all ids
+sub make_ids {
+  my $idtype=shift;
+  my $id_prefix=($OPTIONS->history && grep {$idtype eq $_} qw(type_001 type_002))? 
+    "${idtype}/x_": "${idtype}/a_";
+  @_? map {"${id_prefix}$_"} @ids[@_]: map {"${id_prefix}$_"} @ids;
+}
+# result can be table or count
+sub empty_result {
+  my $result=shift;
+  ref $result? scalar @$result: $result;
 }
 1;

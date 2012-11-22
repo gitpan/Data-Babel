@@ -1,0 +1,6 @@
+Database query failed:
+SELECT DISTINCT type_1, type_0, type_1 FROM type_1_master NATURAL LEFT OUTER JOIN maptable WHERE  _X_type_0 IN ('retired_1', 'retired_2', 'retired_3') AND (type_0 IS NOT NULL OR type_1 IS NOT NULL)
+Unknown column '_X_type_0' in 'where clause' at /local/users/ngoodman/Projects/Babel/Data-Babel-1.10/blib/lib/Data/Babel.pm line 129
+	Data::Babel::translate('Data::Babel=HASH(0xc9306c8)', 'input_idtype', 'type_1', 'filters', 'HASH(0xc94c748)', 'output_idtypes', 'ARRAY(0xc96c738)') called at t/babel.030.history.t line 103
+	main::doit('ARRAY(0xc844498)', 0, 't/babel.030.history.t', 70) called at t/babel.030.history.t line 70
+# Tests were run but no plan was declared and done_testing() was not seen.

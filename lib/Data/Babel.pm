@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.10_04';
+our $VERSION='1.10_05';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -140,7 +140,7 @@ sub generate_query {
   # be careful about objects vs. names
   # use variables xxx_idtype for objects, xxx_name for names
   my $input_idtype=$self->_2idtype($args->input_idtype);
-  my $input_name=$input_idtype->name;
+  my $input_name=_generate_colname($input_idtype);
   my $input_ids=$args->input_ids;
   $input_ids=[$input_ids] if defined $input_ids && !ref $input_ids;
   
@@ -149,7 +149,8 @@ sub generate_query {
   $filters=new Data::Babel::HAH_MultiValued $filters;
   my @filter_keys=keys %$filters;
   my @filter_idtypes=map {$self->_2idtype($_)} @filter_keys;
-  my @filter_names=map {$_->name} @filter_idtypes;
+  # my @filter_names=map {$_->name} @filter_idtypes;
+  my @filter_names=map {_generate_colname($_)} @filter_idtypes;
   $filters=new Data::Babel::HAH_MultiValued
     (map {$filter_names[$_]=>$filters->{$filter_keys[$_]}} (0..$#filter_keys));
 
@@ -163,7 +164,7 @@ sub generate_query {
     # MySQL doesn't allow duplicate columns in inner queries. sigh..
     join(', ',uniq($input_name,@output_names)): join(', ',$input_name,@output_names);
   my $input_master=$input_idtype->master;
-  # start with master if 'informative': explicit || degree>1. 
+  # start with input master if 'informative': explicit || degree>1. 
   # always use if single idtype or user wants all input_ids
   my @join_tables=
     ($input_master->explicit || $input_idtype->degree>1 || @idtypes==1 || !defined($input_ids))?
@@ -171,6 +172,8 @@ sub generate_query {
   # get rest of query by exploring query graph
   push(@join_tables,map {$self->id2name($_)} 
        $self->traverse($self->make_query_graph(@idtypes))) if @idtypes>1;
+  # add in filter masters for any with histories
+  push(@join_tables,map {$_->tablename} grep {$input_idtype != $_} @filter_idtypes);
   my $join_sql=join(' NATURAL LEFT OUTER JOIN ',@join_tables);
   # NG 10-08-19: need to quote everything unless we're willing to check the SQL type
   #              'cuz, if column is string and input_id is number, MySQL converts the 
@@ -224,7 +227,11 @@ sub generate_query {
   
   $sql;
 }
-
+# input is IdType object. handles history
+sub _generate_colname {
+  my $idtype=shift;
+  !$idtype->history? $idtype->name: '_X_'.$idtype->name;
+}
 # we're using a modified (bipartite) schema graph. nodes are IdTypes and MapTables.
 # edges go between MapTables and the IdTypes they contain
 # use persistent ids for nodes (rather than objects) so it will work when fetched from db 
@@ -488,7 +495,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.10_04
+Version 1.10_05
 
 =head1 SYNOPSIS
 

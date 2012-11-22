@@ -22,7 +22,7 @@ use base qw(Data::Babel::Base);
 
 # babel, name, id, autodb, log, verbose - methods defined in Base
 @AUTO_ATTRIBUTES=qw(master maptables referent defdb meta format sql_type internal);
-@OTHER_ATTRIBUTES=qw(display_name external);
+@OTHER_ATTRIBUTES=qw(display_name external tablename history);
 @CLASS_ATTRIBUTES=qw();
 %SYNONYMS=(perl_format=>'format');
 %DEFAULTS=(maptables=>[]);
@@ -57,7 +57,16 @@ sub external {
   my $self=shift;
   @_? !$self->internal(!$_[0]): !$self->internal;
 }
-
+# tablename - delegates to master
+sub tablename {
+  my $self=shift;
+  defined $self->master && $self->master->tablename(@_);
+}
+# history - delegates to master
+sub history {
+  my $self=shift;
+  defined $self->master && $self->master->history(@_);
+}
 
 # NG 10-08-08. sigh.'verbose' in Class::AutoClass::Root conflicts with method in Base
 #              because AutoDB splices itself onto front of @ISA.

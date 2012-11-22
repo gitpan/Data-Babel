@@ -133,6 +133,10 @@ sub load_master {
   my $column_name=$idtype->name;
   my $column_sql_type=$idtype->sql_type;
   my $column_def="$column_name $column_sql_type";
+  # NG 12-11-18: add _X_ column for history
+  $column_def.=", _X_$column_name $column_sql_type" if $master->history;
+  my $column_list=!$master->history? $column_name: " _X_$column_name, $column_name";
+
   # NG 12-09-30: no longer get here if master implicit
   # my $query=$master->query;
 
@@ -155,10 +159,13 @@ sub load_master {
   # new code: insert data into table
   my @values=map {'('.join(', ',map {$dbh->quote($_)} @$_).')'} @$data;
   my $values=join(",\n",@values);
-  $dbh->do(qq(INSERT INTO $tablename VALUES\n$values));
+  $dbh->do(qq(INSERT INTO $tablename ($column_list) VALUES\n$values));
   # }
   # code adapted from MainData::LoadData Step
   $dbh->do(qq(ALTER TABLE $tablename ADD INDEX ($column_name)));
+  # NG 12-11-18: add _X_ column for history
+  $dbh->do(qq(ALTER TABLE $tablename ADD INDEX ("_X_$column_name"))) if $master->history;
+
 }
 # create universal relation (UR)
 # algorithm: natual full outer join of all maptables and explicit masters
@@ -174,11 +181,17 @@ sub load_ur {
   my @tables=sort {$a->tablename cmp $b->tablename} @{$babel->maptables};
   # add in explicit Masters. order doesn't matter so long as they're last
   push(@tables,grep {$_->explicit} @{$babel->masters});
+  # %column2type maps column_names to sql types
+  my %column2type;
+  my @idtypes=@{$babel->idtypes};
+  @column2type{map {$_->name} @idtypes}=map {$_->sql_type} @idtypes;
+  my @x_idtypes=grep {$_->history} @idtypes;
+  @column2type{map {'_X_'.$_->name} @x_idtypes}=map {$_->sql_type} @x_idtypes;
 
   my $left=shift @tables;
   while (my $right=shift @tables) {
     my $result_name=@tables? undef: $urname; # final answer is 'ur'
-    $left=full_join($babel,$left,$right,$result_name);
+    $left=full_join($babel,$left,$right,$result_name,\%column2type);
   }
   $left;
 }
@@ -187,6 +200,8 @@ sub load_ur {
 # NG 12-09-04: rewrote to do filtering in Perl - seems more robust test strategy
 # NG 12-09-21: added support for input_ids=>scalar, filters=>ARRAY,  
 #              all semantics of filter=>undef
+# NG 12-11-18: added support for histories
+# NG 12-11-20: fixed input column for histories: 0th column is '_X_' if input has history
 # select data from ur (will actually work for any table)
 sub select_ur {
   my $args=new Hash::AutoHash::Args(@_);
@@ -211,25 +226,33 @@ sub select_ur {
   # NG 12-09-04: include filter_idtypes so we can do filtering in Perl
   # NG 12-09-04: test for length obsolete, since input_idtype required
   # my @columns=grep {length($_)} ($input_idtype,@filter_idtypes,@output_idtypes);
-  my @columns=($input_idtype,@filter_idtypes,@output_idtypes);
+  # NG 12-11-20: 0th column is '_X_' if input has history
+  my @columns=((!_has_history($babel,$input_idtype)? $input_idtype: "_X_$input_idtype"),
+	       @filter_idtypes,@output_idtypes);
+  # NG 12-11-18: tack on filter history columns
+  push(@columns,map {"_X_$_"} grep {_has_history($babel,$_)} @filter_idtypes);
   my $columns=join(', ',@columns);
   my $sql=qq(SELECT DISTINCT $columns FROM $urname WHERE $columns[0] IS NOT NULL);
   my $table=$dbh->selectall_arrayref($sql);
 
-  # now do filtering. columns are input, filters, then outputs
+  # now do filtering. columns are input, filters, then outputs, finally history columns
+  my %name2idx=map {$columns[$_]=>$_} 0..$#columns;
   $table=filter_ur($table,0,$input_ids);
   for(my $j=0; $j<@filter_idtypes && @$table; $j++) {
     my $filter_ids=$filters->{$filter_idtypes[$j]};
-    $table=filter_ur($table,$j+1,$filter_ids);
+    $table=filter_ur($table,$name2idx{"_X_$columns[$j+1]"}||$j+1,$filter_ids);
   }
   # remove filter_idtype columns
   map {splice(@$_,1,@filter_idtypes)} @$table;
+  # NG 12-11-18: remove history columns
+  map {splice(@$_,1+@output_idtypes)} @$table;
   # remove duplicate rows. dups can arise when filter columns spliced out
   $table=uniq_rows($table);
 
   # NG 10-11-10: remove rows whose output columns are all NULL, because translate now skips these
   # NG 12-09-04: rewrote loop to one-liner below
   @$table=grep {my @row=@$_; grep {defined $_} @row[1..$#row]} @$table if @output_idtypes;
+  
   $table;
 }
 sub filter_ur {
@@ -464,27 +487,36 @@ sub cmp_rows {
 # $result is optional name of result table. if not set, unique name generated
 # TODO: add option to delete intermediate tables as we go.
 sub full_join {
-  my($babel,$left,$right,$result_name)=@_;
-  my @idtypes=uniq(@{$left->idtypes},@{$right->idtypes});
-  my $result=new t::FullOuterJoinTable(name=>$result_name,idtypes=>\@idtypes);
+  my($babel,$left,$right,$resultname,$column2type)=@_;
   my $leftname=$left->tablename;
   my $rightname=$right->tablename;
-  my $resultname=$result->tablename;
-  my @column_names=map {$_->name} @idtypes;
-  my @column_sql_types=map {$_->sql_type} @idtypes;
-  my @column_defs=map {$column_names[$_].' '.$column_sql_types[$_]} (0..$#idtypes);
+ # left is usually t::FullOuterJoinTable but can be MapTable or Master
+  my @column_names=
+    $left->isa('t::FullOuterJoinTable')? @{$left->column_names}: map {$_->name} @{$left->idtypes};
+  # right is always MapTable or Master
+  push(@column_names,map {$_->name} @{$right->idtypes});
+  # NG 12-11:18: added histories
+  push(@column_names,'_X_'.$left->idtype->name)
+    if $left->isa('Data::Babel::Master') && $left->history;
+  push(@column_names,'_X_'.$right->idtype->name)
+    if $right->isa('Data::Babel::Master') && $right->history;
+
+  @column_names=uniq(@column_names);
+  my @column_defs=map {$_.' '.$column2type->{$_}} @column_names;
   my $column_names=join(', ',@column_names);
   my $column_defs=join(', ',@column_defs);
   
+  my $result=new t::FullOuterJoinTable(name=>$resultname,column_names=>\@column_names);
+  $resultname=$result->tablename;
   # code adapted from MainData::LoadData Step
   my $dbh=$babel->autodb->dbh;
   $dbh->do(qq(DROP TABLE IF EXISTS $resultname));
-  my $columns=join(', ',@column_defs);
+  my $column_list=join(', ',@column_defs);
   my $query=qq
     (SELECT $column_names FROM $leftname NATURAL LEFT OUTER JOIN $rightname
      UNION
      SELECT $column_names FROM $leftname NATURAL RIGHT OUTER JOIN $rightname);
-  $dbh->do(qq(CREATE TABLE $resultname ($columns) AS\n$query));
+  $dbh->do(qq(CREATE TABLE $resultname ($column_list) AS\n$query));
   $result;
 }
 # drop all tables and views associated with Babel tests
@@ -731,6 +763,20 @@ sub check_implicit_masters {
   }
   report_pass($ok,$label);
 }
+
+########################################
+# utility functions for history idtypes
+# arg is IdType object or name
+sub _has_history {
+  my($babel,$idtype)=@_;
+  ref $idtype or $idtype=$babel->name2idtype($idtype);
+  $idtype->history;
+}
+# sub _history_name {
+#   my($babel,$idtype)=@_;
+#   ref $idtype and $idtype=$idtype->name;
+#   "_X_$idtype";
+# }
 1;
 
 package t::FullOuterJoinTable;
@@ -741,11 +787,11 @@ use Class::AutoClass;
 use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES @CLASS_ATTRIBUTES %SYNONYMS %DEFAULTS);
 use base qw(Class::AutoClass);
 
-@AUTO_ATTRIBUTES=qw(name idtypes);
+@AUTO_ATTRIBUTES=qw(name column_names);
 @OTHER_ATTRIBUTES=qw(seqnum);
 @CLASS_ATTRIBUTES=qw();
-%SYNONYMS=(tablename=>'name',columns=>'idtypes');
-%DEFAULTS=(idtypes=>[]);
+%SYNONYMS=(tablename=>'name',columns=>'column_names');
+%DEFAULTS=(column_names=>[]);
 Class::AutoClass::declare;
 
 our $seqnum=0;

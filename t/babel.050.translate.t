@@ -7,9 +7,7 @@ use Test::More;
 use Text::Abbrev;
 use strict;
 
-# NOT YET PORTED TO NEW 050.star TESTS
-
-# if --developer set, run full test suite. else just a short version
+# if --developer set, run longer versions of tests
 our %OPTIONS;
 Getopt::Long::Configure('pass_through'); # leave unrecognized options in @ARGV
 GetOptions (\%OPTIONS,qw(user_type=s));
@@ -20,22 +18,31 @@ my $user_type=$user_type{$OPTIONS{user_type}} ||
 
 my $subtestdir=subtestdir;
 opendir(DIR,$subtestdir) or confess "Cannot read subtest directory $subtestdir: $!";
-my @mainfiles=sort grep /^[^.].*\.t$/,readdir DIR;
+my @testfiles=sort grep /^[^.].*\.t$/,readdir DIR;
+my $startup=shift @testfiles;
 closedir DIR;
+# my @extras=(undef,qw(history validate));
+my @extras=(undef,qw(history));
 my @ops=qw(translate count);
 my @db_types=$user_type eq 'developer'? qw(binary staggered basecalc): qw(binary);
 my @graph_types=$user_type eq 'developer'? qw(star chain tree): qw(star);
 
-my @testfiles;
-for my $op (@ops) {
-  for my $db_type (@db_types) {
-    for my $graph_type (@graph_types) {
-      push(@testfiles,
+my @tests;
+for my $extra (@extras) {
+  for my $graph_type (@graph_types) {
+    my $test=$startup;
+    $test.=" --graph_type $graph_type --user_type $user_type" unless $user_type eq 'installer';
+    $test.=" --$extra" if defined $extra;
+    push(@tests,$test);
+    for my $op (@ops) {
+      push(@tests,
 	   map {my $test="$_ --op $op";
-		$test.=" --db_type $db_type --graph_type $graph_type --user_type $user_type" unless $user_type eq 'installer';
+		$test.=" --graph_type $graph_type --user_type $user_type" 
+		  unless $user_type eq 'installer';
+		$test.=" --$extra" if defined $extra;
 		$test}
-	   @mainfiles);
+	   @testfiles);
     }}}
-my $ok=runtests {details=>1,nested=>1,testdir=>scriptbasename},@testfiles;
+my $ok=runtests {details=>1,nested=>1,testdir=>scriptbasename},@tests;
 ok($ok,script);
 done_testing();

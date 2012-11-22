@@ -11,20 +11,32 @@ use strict;
 init();
 
 my $big=10000;
-my $input_idtype='type_001';
-my @regular_input_ids=map {$input_idtype."/a_$_"} @ids;
-my @extra_input_ids=map {"extra_$_"} (0..$big-1);
-my $output_idtypes=['type_004'];
-for my $op (qw(translate count)) {
-  next unless $OPTIONS{$op};
-  my $correct=select_ur
-    (babel=>$babel,
-     input_idtype=>$input_idtype,input_ids=>[@regular_input_ids],output_idtypes=>$output_idtypes);
-  my $actual=$babel->$op
-    (input_idtype=>$input_idtype,input_ids=>[@regular_input_ids,@extra_input_ids],
-     output_idtypes=>$output_idtypes);
-  my $label="$op big IN clause: size > $big";
-  cmp_op($actual,$correct,$op,$label,__FILE__,__LINE__);
+for my $idtype (@idtypes) {
+  my $ok=doit($idtype);
+  report_pass($ok,"$OP input=$idtype");
 }
 done_testing();
 
+sub doit {
+  my($input_idtype)=@_;
+  my @regular_input_ids=make_ids($input_idtype);
+  my @extra_input_ids=(@regular_input_ids,map {"extra_$_"} (0..$big-1));
+  my $ok=1;
+  my $correct=select_ur
+    (babel=>$babel,
+     input_idtype=>$input_idtype,input_ids=>\@regular_input_ids,output_idtypes=>\@idtypes);
+  my $actual=$babel->$OP
+    (input_idtype=>$input_idtype,input_ids=>[@regular_input_ids,@extra_input_ids],
+     output_idtypes=>\@idtypes);
+  my $label="input_idtype=$input_idtype";
+  $ok&&=cmp_op_quietly($actual,$correct,$OP,$label) or return 0;
+  # NG 10-11-08: test with limits of 0,1,2
+  for my $limit (0,1,2) {
+    my $actual=$babel->$OP
+      (input_idtype=>$input_idtype,input_ids=>[@regular_input_ids,@extra_input_ids],
+       output_idtypes=>\@idtypes,limit=>$limit);
+    my $label="input_idtype=$input_idtype, limit=$limit";
+    $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__,$limit) or return 0;
+  }
+  $ok;
+}

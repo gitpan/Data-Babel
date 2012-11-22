@@ -4,28 +4,44 @@
 use t::lib;
 use t::runtests;
 use t::util;
+use Carp;
 use Test::More;
 use Getopt::Long;
+use Text::Abbrev;
 use strict;
 
-# if --developer set, run full test suite. else just a short version
 our %OPTIONS;
 Getopt::Long::Configure('pass_through'); # leave unrecognized options in @ARGV
-GetOptions (\%OPTIONS,qw(developer translate count history validate));
+GetOptions (\%OPTIONS,qw(user_type=s));
+our %user_type=abbrev qw(installer developer);
+$OPTIONS{user_type}='installer' unless defined $OPTIONS{user_type};
+my $user_type=$user_type{$OPTIONS{user_type}} ||
+  confess "Invalid user_type option $OPTIONS{user_type}";
 
-my @tests=map {"translate_hand.$_.t"} 
-  qw(000.sanity 010.main 020.none 030.all 040.scalar 090.big_in);
-my @options=qw(translate count history validate);
-my @files;
+my $subtestdir=subtestdir;
+opendir(DIR,$subtestdir) or confess "Cannot read subtest directory $subtestdir: $!";
+my @testfiles=sort grep /^[^.].*\.t$/,readdir DIR;
+my $startup=shift @testfiles;
+closedir DIR;
+# my @extras=(undef,qw(history validate));
+my @extras=(undef,qw(history));
+my @ops=qw(translate count);
 
-unless ($OPTIONS{developer}) {
-  # run each test with each single option
-  @files=map {my $option=$_; map {my $test=$_; "$test --$option"} @tests} @options;
-} else {
-  # for now, just add --developer. someday, there will be option combos
-  @files=map {my $option=$_; map {my $test=$_; "$test --$option --developer"} @tests} @options;
-}
-my $ok=runtests {testcode=>1,details=>1,exact=>1},@files;
+my @tests;
+for my $extra (@extras) {
+  my $test=$startup;
+  $test.=" --user_type $user_type" unless $user_type eq 'installer';
+  $test.=" --$extra" if defined $extra;
+  push(@tests,$test);
+  for my $op (@ops) {
+    push(@tests,
+	 map {my $test="$_ --op $op";
+	      $test.=" --user_type $user_type" unless $user_type eq 'installer';
+	      $test.=" --$extra" if defined $extra;
+	      $test}
+	 @testfiles);
+  }}
 
+my $ok=runtests {details=>1,nested=>1,testdir=>scriptbasename},@tests;
 ok($ok,script);
 done_testing();
