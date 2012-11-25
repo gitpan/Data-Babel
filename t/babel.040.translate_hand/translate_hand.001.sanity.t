@@ -44,6 +44,17 @@ my $actual=$babel->$OP(input_idtype=>'type_001',input_ids=>\@input_ids,
 		       output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_op($actual,$correct,$OP,"basic $OP",__FILE__,__LINE__);
 
+# NG 12-11-23: added validate
+my @input_ids=map {"${id_prefix}$_"} qw(invalid 000 001 011 110 111);
+my $correct=prep_tabledata($data->basics_validate->data);
+is_quietly(scalar @$correct,6,'BAD NEWS: prep_tabledata got wrong number of rows!!');
+my $actual=select_ur(babel=>$babel,input_idtype=>'type_001',input_ids=>\@input_ids,validate=>1,
+		     output_idtypes=>['type_003']);
+cmp_table_quietly($actual,$correct,"select_ur basic validate $OP",__FILE__,__LINE__);
+my $actual=$babel->$OP
+  (input_idtype=>'type_001',input_ids=>\@input_ids,validate=>1,output_idtypes=>['type_003']);
+cmp_op($actual,$correct,$OP,"basic validate $OP",__FILE__,__LINE__);
+
 # basic filter test
 my $correct=prep_tabledata($data->basics_filter->data);
 is_quietly(scalar @$correct,1,'BAD NEWS: prep_tabledata got wrong number of rows!!');

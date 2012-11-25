@@ -33,6 +33,8 @@ t/babel.020.persist/persist.010.new.t
 t/babel.020.persist/persist.020.old.t
 t/babel.020.persist/persist.030.reread.t
 t/babel.030.history.t
+t/babel.032.validate_option.t
+t/babel.034.validate.t
 t/babel.040.translate_hand.t
 t/babel.040.translate_hand/translate_hand.000.setup.t
 t/babel.040.translate_hand/translate_hand.001.sanity.t
@@ -80,6 +82,7 @@ t/babel.106.empty_ids.t
 t/babel.107.filter_undef.t
 t/babel.108.input_scalar.t
 t/babel.109.input_undef.t
+t/babel.110.dup_ins.t
 t/Build.pm
 t/handcrafted.data.ini
 t/handcrafted.idtype.ini

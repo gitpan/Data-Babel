@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.10_05';
+our $VERSION='1.10_06';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -21,6 +21,7 @@ use Class::AutoClass;
 use Carp;
 use Graph::Undirected;
 use List::MoreUtils qw(uniq);
+use List::Util qw(min);
 use Hash::AutoHash::Args;
 use Hash::AutoHash::MultiValued;
 use Data::Babel::Config;
@@ -125,14 +126,73 @@ sub translate {
   confess "At most one of input_ids or input_ids_all may be set" if $ids_args>1;
   my $sql=$self->generate_query($args);
   my $dbh=$args->dbh || $self->autodb->dbh;
-  my $results=$args->count? $dbh->selectrow_array($sql): $dbh->selectall_arrayref($sql);
+  # my $results=$args->count? $dbh->selectrow_array($sql): $dbh->selectall_arrayref($sql);
+  my $results=$dbh->selectall_arrayref($sql);
   confess "Database query failed:\n$sql\n".$dbh->errstr if $dbh->err;
+  unless ($args->validate) {
+    $results=@$results? $results->[0][0]: 0 if $args->count;
+  } else { 
+    # cases:
+    # 1) no filters. $results contains all valid input_ids. missing ids are invalid
+    # 2) filters. $results contains subset of valid input_ids. have to query db to
+    #    get all valid ones
+    # initial code needed for all cases
+    my $input_ids=$args->input_ids;
+    my @input_ids=ref $input_ids? uniq(@$input_ids): defined $input_ids? ($input_ids): ();
+    my $num_outputs=ref $args->output_idtypes? @{$args->output_idtypes}: 0;
+
+    # %have_id tells which input ids are in result
+    # @missing_ids are input ids not in result - some are valid, some not
+    # %id2valid maps input ids to validity
+    my %have_id=map {$_->[0]=>1} @$results;
+    my @missing_ids;
+    my %id2valid;
+
+    if (!$args->filters) {
+      %id2valid=%have_id;
+    } else {
+      my $input_idtype=$self->_2idtype($args->input_idtype);
+      my $input_colname=_generate_colname($input_idtype);
+      my $input_tablename=$input_idtype->tablename;
+      my $sql=qq(SELECT DISTINCT $input_colname FROM $input_tablename);
+      if (@input_ids) {
+	my @input_ids_sql=map {$dbh->quote($_)} @input_ids;
+	my $where= "WHERE $input_colname IN ".'('.join(', ',@input_ids_sql).')';
+	$sql.="\n$where";
+      }
+      my $valid_ids=$dbh->selectcol_arrayref($sql);
+      confess "Database query failed:\n$sql\n".$dbh->errstr if $dbh->err;
+      %id2valid=map {$_=>1} @$valid_ids;
+      @input_ids=@$valid_ids unless defined $input_ids;
+    }
+    @missing_ids=grep {!$have_id{$_}} @input_ids;
+    push(@$results,map {[$_,$id2valid{$_}||0,(undef)x$num_outputs]} @missing_ids);
+ 
+    # post-processing
+    # 1) count. return number of rows
+    # 2) limit. select subset of rows
+    # 3) count+limit: return min of count, limit
+    if ($args->count) {
+      $results=scalar @$results;
+      $results=min($args->limit,$results) if defined $args->limit;
+    } elsif (defined $args->limit) {
+      @$results=@$results[0..min($args->limit,scalar @$results)-1];
+    }
+  }
   $results;
 }
 sub count {
   my $self=shift;
   my $args=new Hash::AutoHash::Args(@_);
   $args->count(1);
+  $self->translate($args);
+}
+sub validate {
+  my $self=shift;
+  my $args=new Hash::AutoHash::Args(@_);
+  confess "Required argument input_idtype missing" unless $args->input_idtype;
+  $args->validate(1);
+  $args->output_idtypes([$args->input_idtype]);
   $self->translate($args);
 }
 sub generate_query {
@@ -160,9 +220,13 @@ sub generate_query {
   confess "Not enough types specified" unless @idtypes;
 
   my $dbh=$self->autodb->dbh;
-  my $columns_sql=$args->count? 
-    # MySQL doesn't allow duplicate columns in inner queries. sigh..
-    join(', ',uniq($input_name,@output_names)): join(', ',$input_name,@output_names);
+  my @columns=($input_name,@output_names);
+  # splice in VALID column if validating
+  splice(@columns,1,0,'1 AS VALID') if $args->validate;
+  # MySQL doesn't allow duplicate columns in inner queries. sigh..
+  @columns=uniq(@columns) if $args->count;
+  my $columns_sql=join(', ',@columns);
+  
   my $input_master=$input_idtype->master;
   # start with input master if 'informative': explicit || degree>1. 
   # always use if single idtype or user wants all input_ids
@@ -208,7 +272,8 @@ sub generate_query {
     push(@conds,$cond);
   }
   # NG 10-11-10: skip rows whose output columns are all NULL
-  if (@output_names)  {
+  # NG 12-11-23: but keep these rows if validating
+  if (@output_names && !$args->validate)  {
     my $sql_not_null=join(' OR ',map {"$_ IS NOT NULL"} @output_names);
     push(@conds,"($sql_not_null)");
   }
@@ -216,14 +281,16 @@ sub generate_query {
   $sql.=' WHERE '.join(' AND ',@conds) if @conds;
 
   # NG 10-11-08: support limit. based on DM's change
+  # NG 12-11-23: if validating, have to do limit in code...
   my $limit=$args->limit;
   confess "Invalid limit: $limit" if defined $limit && $limit=~/\D/;
-  $sql.=" LIMIT $limit" if defined $limit;
+  $sql.=" LIMIT $limit" if defined $limit && !$args->validate;
 
   # NG 12-09-23: support count
   # Note: 'AS T' needed at end of query because mySQL sees inner select as defining derived
   #       table and requires every derived table have alias
-  $sql=qq(SELECT COUNT(*) FROM ($sql) AS T) if $args->count;
+  # NG 12-11-23: if validating, have to do count in code...
+  $sql=qq(SELECT COUNT(*) FROM ($sql) AS T) if $args->count && !$args->validate;
   
   $sql;
 }
@@ -495,7 +562,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.10_05
+Version 1.10_06
 
 =head1 SYNOPSIS
 
@@ -546,6 +613,17 @@ Version 1.10_05
   # count number of Entrez Gene ids represented on Affy hgu133a
   my $count=$babel->count
     (input_idtype=>'gene_entrez',filters=>{chip_affy=>'hgu133a'});
+
+  # tell which input ids are valid
+  my $table=$babel->validate
+    (input_idtype=>'gene_entrez',
+     input_ids=>[1,2,3]);
+  # print validity status of each
+  for my $row (@$table) {
+    my($input_id,$valid,$current_id)=@$row;
+    print "Entrez gene $input_id is ",
+          ($valid? "valid with current value $current_id": 'invalid'),"\n";
+  }
 
 =head1 DESCRIPTION
 
@@ -911,7 +989,8 @@ The available class attributes are
            count          boolean. If true, return number of output rows rather 
                           than the rows themselves. Equivalent to 'count'
                           method.
-Notes
+
+=head3 Notes on translate
 
 =over 2
 
@@ -922,10 +1001,16 @@ Notes
 =item * If input_ids is absent or undef, it translates all ids of the
 input type.
 
+=item * Duplicate input_ids are ignored.
+
 =item * If input_ids is an empty ARRAY, ie, [], the result will be
 empty.
 
 =item * It is an error to set both input_ids and input_ids_all.
+
+=item * It is legal but odd to specify a filter on the input
+idtype. This effectively computes the intersection of the input and
+filter ids.
 
 =item * Input and filter ids can be old (valid in the past) or current
 (valid now). Output ids are always current.
@@ -933,6 +1018,23 @@ empty.
 =item * By default, 'translate' does not return rows in which the
 output columns are all NULL. Setting 'validate' changes this and
 ensures that every input id will appear in the output.
+
+=item * If 'count' and 'limit' both set, the result is the number of
+output rows after the limit is applied and will always be <= the
+limit.
+
+=item * If 'validate' and 'limit' both set, the result may not contain
+all input ids if to do so would produce more rows than the limit. This
+defeats one of the purposes of 'validate', namely to ensure that all
+input ids appear in the output.
+
+=item * If 'count' and 'validate' both set, the result is the number
+of output rows including ones added by 'validate', ie, rows with in
+which all output columns are NULL.
+
+=item * If 'validate' and 'filters' both set, the result may contain
+input ids excluded by the filter. These rows will have NULLs in all
+output columns.
 
 =item * If no output idtypes are specified, the output will contain
 one row for each valid input id (by default) or one row for each id
@@ -1026,47 +1128,52 @@ can contain rows in which the output id does not match the filter.
  Returns : table represented as an ARRAY of ARRAYS. Each inner ARRAY is one row
            of the result. The elements of each row are
              0) input id as given
-             1) current value of the id or undef if it has no current value; may
+             1) validity status. 1 for valid; 0 for invalid
+             2) current value of the id or undef if it has no current value; may
                 be the same as the original id
-             2) validity status. 1 for valid; 0 for invalid
-             3) name of IdType
- Args    : input_idtype   name of Data::Babel::IdType object or object or ARRAY
-                          of names or IdType objects. If absent or undef, checks
-                          all IdTypes.
-           input_idtypes  synonym for input_idtype
-           input_ids      id or ARRAY of ids to be validated. If absent or 
-                          undef, returns all valid ids of the input types. If an
-                          empty array, ie, [], no ids are validated and the 
+ Args    : input_idtype   name of Data::Babel::IdType object or object
+           input_ids      id or ARRAY of ids to be translated. If absent or
+                          undef, all ids of the input type are translated. If an
+                          empty array, ie, [], no ids are translated and the 
                           result will be empty.
-           input_ids_all  Equivalent to omitting input_ids or setting it to
-                          undef but more explicit.
+           input_ids_all  boolean. If true, all ids of the input type are
+                          translated. Same as omitting input_ids or setting it
+                          to undef but more explicit.
+           limit          maximum number of rows to retrieve
 
 'validate' looks up the given input ids in the Master tables for the
-given input types (or all types if no input types are given), and
-returns a table indicating which ids are valid for which types. For
-types that have history information, the method also indicates the
-current value of the id. For types that have no history, the current
-value will always equal the given id if the id is valid.
+given input type and returns a table indicating which ids are
+valid. For types with history information, the method also
+indicates the current value of the id. For types that have no history,
+the current value will always equal the given id if the id is valid.
 
 'validate' can also retrieve a complete table of valid ids (along with
-history information) for one or more types.
+history information) for the type.
 
-Notes
+'validate' is a wrapper for 'translate' that sets the 'validate'
+argument to a true value and the output_idtypes argument to the
+input_idtype.  All other 'translate' arguments (filters, count) are
+legal here and work but are of dubious value.
+
+=head3 Notes on validate
 
 =over 2
 
-=item * For rows whose validity status is 1 (valid), elements 0 and 1
-(given id and current value) indicate the history: if the elements are
-equal, the given id is current; else if the current value is defined,
-the given id has been replaced by the new one; else the given id was
-valid in the past but has no current value.
+=item * For rows whose validity status is 1 (valid), the given id and
+current value indicate the history: if the elements are equal, the
+given id is current; else if the current value is defined, the given
+id has been replaced by the new one; else the given id was valid in
+the past but has no current value.
 
 =item * For types that have no history, all valid ids are current. If
 the given id is valid, the given id and current value will be equal;
 else the current value will be undef.
 
-=item * For rows whose status is 0 (invalid), element 1 (current
-value) will always be undef.
+=item * For rows whose status is 0 (invalid), the current value will
+always be undef.
+
+=item * The 'translate' arguments 'filters' and 'count' are legal here
+and work but are of dubious value.
 
 =back
 
@@ -1215,6 +1322,9 @@ The available object attributes are
   external      boolean indicating whether this is a regular external ID or one
                 intended for internal use
   internal      opposite of external
+  history       boolean indicating whether this IdType's Master contains history
+                information
+  tablename     name of this IdType's Master's table
   display_name  human readable name, eg, 'Entrez Gene ID'; for internal 
                 identifiers, a warning is appended to the end
   referent      the type of things to which this type of identifier refers
@@ -1276,8 +1386,7 @@ The available object attributes are
   explicit      opposite of implicit
   view          boolean indicating whether Master is implemented as a view
   history       boolean indicating whether Master contains history information.
-                optional. if absent, the software determines this by examining 
-                the database table for the object
+  tablename     synonym for name
   inputs, namespace, query
                 used by our database construction procedure
 

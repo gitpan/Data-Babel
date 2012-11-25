@@ -4,9 +4,10 @@
 use t::lib;
 use t::utilBabel;
 use Carp;
+use English;
+use File::Spec;
 use Test::More;
 use Test::Deep;
-use File::Spec;
 use Class::AutoDB;
 use strict;
 
@@ -24,7 +25,7 @@ done_testing();
 
 sub doit {
   my($options)=@_;
-  open(SCRIPTOUT,"perl examples/babel.pl $options |") 
+  open(SCRIPTOUT,"$EXECUTABLE_NAME -Mblib examples/babel.pl $options |") 
     || confess "Cannot open pipe to execute example script with $options options: $!";
   my @scriptout=<SCRIPTOUT>;
   close SCRIPTOUT;

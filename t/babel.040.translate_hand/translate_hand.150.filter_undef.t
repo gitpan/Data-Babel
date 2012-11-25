@@ -44,25 +44,25 @@ sub doit {
     push(@filter_ids,make_ids($filter_idtype,0..$max_id)) if defined $max_id;
     $filters{$filter_idtype}=\@filter_ids;
   }
-  my $correct=select_ur
-    (babel=>$babel,
-     input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
-  # way too many cases yield empty results. skip most of them
-  # return($ok) unless scalar(@$correct);
-  my @input_ids=make_ids($input_idtype);
-  my $actual=$babel->$OP
-    (input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
-     output_idtypes=>$output_idtypes);
+  my @args=(input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+  push(@args,validate=>1) if $OPTIONS->validate;
+  my $correct=select_ur(babel=>$babel,@args);
+  my $actual=$babel->$OP(@args);
   my $label="input_idtype=$input_idtype, all input_ids, filter_idtypes=@$filter_idtypes, max filter_id=$max_id, output_idtypes=@$output_idtypes";
+  $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__) or return 0;
+  my @input_ids=make_ids($input_idtype);
+  push(@input_ids,make_invalid_ids($input_idtype,$max_id+1)) if $OPTIONS->validate;
+  push(@args,(input_ids=>\@input_ids));
+  my $correct=select_ur(babel=>$babel,@args);
+  my $actual=$babel->$OP(@args);
+  my $label="input_idtype=$input_idtype, all input_ids + invalid, filter_idtypes=@$filter_idtypes, max filter_id=$max_id, output_idtypes=@$output_idtypes";
   $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__) or return 0;
   # NG 10-11-08: test with limits of 0,1,2
   # NG 12-10-14: don't bother if result empty, since too many cases
   return $ok if empty_result($actual);
   for my $limit (0,1,2) {
-    my $actual=$babel->$OP
-      (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes,
-       limit=>$limit);
-    my $label="input_idtype=$input_idtype, input_ids absent, filter_idtypes=@$filter_idtypes, max filter_id=$max_id, output_idtypes=@$output_idtypes, limit=$limit";  
+    my $actual=$babel->$OP(@args,limit=>$limit);
+    my $label="input_idtype=$input_idtype, all input_ids + invalid, filter_idtypes=@$filter_idtypes, max filter_id=$max_id, output_idtypes=@$output_idtypes, limit=$limit";  
     $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__,$limit) or return 0;
   }
   $ok;

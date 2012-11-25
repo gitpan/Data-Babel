@@ -88,4 +88,27 @@ my $actual=$babel->translate
    output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
 cmp_table($actual,$correct,'translate all (input_ids_all=>1) with duplicate outputs');
 
+# NG 12-11-24: redo with count, since just saw bug with that...
+#              bug caused, I think, by line of code deleted when adding 'validate'
+my $correct=prep_tabledata($data->translate_dup_outputs->data);
+my $actual=$babel->count
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
+is_loudly($actual,scalar @$correct,'count with duplicate outputs');
+# NG 11-10-21: test count all
+# NG 12-08-22: test other ways of saying input_ids_all=>1
+my $correct=prep_tabledata($data->translate_dup_outputs_all->data);
+my $actual=$babel->count
+  (input_idtype=>'type_001',
+   output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
+is_loudly($actual,scalar @$correct,'count all (input_ids absent) with duplicate outputs');
+my $actual=$babel->count
+  (input_idtype=>'type_001',input_ids=>undef,
+   output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
+is_loudly($actual,scalar @$correct,'count all (input_ids=>undef) with duplicate outputs');
+my $actual=$babel->count
+  (input_idtype=>'type_001',input_ids_all=>1,
+   output_idtypes=>[qw(type_001 type_003 type_003 type_004)]);
+is_loudly($actual,scalar @$correct,'count all (input_ids_all=>1) with duplicate outputs');
+
 done_testing();

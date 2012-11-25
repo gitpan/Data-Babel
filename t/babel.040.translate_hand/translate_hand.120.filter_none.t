@@ -29,21 +29,31 @@ sub doit {
   my($input_idtype,$output_idtypes,$filter_idtypes,$filter_id)=@_;
   my $ok=1;
   my %filters=map {$_=>$filter_id} @$filter_idtypes;
-  my $correct=select_ur
-    (babel=>$babel,
-     input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
-  my $actual=$babel->$OP
-    (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+  my @args=(input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+  push(@args,validate=>1) if $OPTIONS->validate;
+  my $correct=select_ur(babel=>$babel,@args);
+  my $actual=$babel->$OP(@args);
   my $label="$OP input_idtype=$input_idtype, filter_idtypes=@$filter_idtypes, filter_ids=$filter_id, output_idtypes=@$output_idtypes";
   $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__) or return 0;
 
   # NG 10-11-08: test with limits of 0,1,2. 
   for my $limit (0,1,2) {
-    my $actual=$babel->$OP
-      (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes,
-       limit=>$limit);
+    my $actual=$babel->$OP(@args,limit=>$limit);
     my $label="$OP input_idtype=$input_idtype, all input_ids, filter_idtypes=@$filter_idtypes, filter_ids=$filter_id, output_idtypes=@$output_idtypes, limit=$limit";
     $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__,$limit) or return 0;
+  }
+  # if validate set, do with invalid input ids
+  if ($OPTIONS->validate) {
+    my @input_ids=(make_ids($input_idtype),make_invalid_ids($input_idtype,1));
+    my $correct=select_ur
+      (babel=>$babel,validate=>1,
+       input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
+       output_idtypes=>$output_idtypes);
+    my $actual=$babel->$OP
+      (input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
+       output_idtypes=>$output_idtypes,validate=>1);
+    my $label="input_idtype=$input_idtype, all input_ids + invalid, filter_idtypes=@$filter_idtypes, filter_ids=$filter_id, output_idtypes=@$output_idtypes";
+    $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__) or return 0;
   }
   $ok;
 }

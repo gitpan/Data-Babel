@@ -1,17 +1,18 @@
 Revision history for Data-Babel
 
-1.20	2013-mm-dd
-	Added orthology mapping and changed 'translate' to use it
-
-1.10_06 2012-11-xx
+1.10_06 2012-11-25
+	RC1 for 1.10
 	New features
-	  histories (Master objects)
 	  'validate' method
           'validate' option for 'translate' and 'count'
-----------
+	Bug fixes
+	  lingering bug in 098.example. test was calling example script with
+	    wrong Perl interpreter and without -Mblib
+	    thanks to CPAN smoke testers for finding bug!!
+
 1.10_05 2012-11-22
 	New features
-	  histories (Master objects)
+	  'translate' and 'count' handle histories
 	Further refactored 04x series in preparation for histories and 'validate'
 	  04x subtests can do filter
 	  042.filter removed from distribution

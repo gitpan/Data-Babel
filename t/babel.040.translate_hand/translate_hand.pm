@@ -16,7 +16,7 @@ our @ISA=qw(Exporter);
 
 our @EXPORT=qw($OPTIONS %OPTIONS @OPTIONS $OP $autodb $babel $dbh 
 	       $data @idtypes @idtypes_subsets @filter_subsets @output_subsets @ids
-	       init make_ids empty_result);
+	       init make_ids make_invalid_ids empty_result);
 our($OPTIONS,%OPTIONS,@OPTIONS,$OP,$autodb,$babel,$dbh,$data,@idtypes,
     @idtypes_subsets,@filter_subsets,@output_subsets,@ids);
 @idtypes=qw(type_001 type_002 type_003 type_004);
@@ -86,6 +86,12 @@ sub make_ids {
   my $id_prefix=($OPTIONS->history && grep {$idtype eq $_} qw(type_001 type_002))? 
     "${idtype}/x_": "${idtype}/a_";
   @_? map {"${id_prefix}$_"} @ids[@_]: map {"${id_prefix}$_"} @ids;
+}
+sub make_invalid_ids {
+  my($idtype,$num)=@_;
+  my $id_prefix=($OPTIONS->history && grep {$idtype eq $_} qw(type_001 type_002))? 
+    "${idtype}/x_": "${idtype}/a_";
+  map {"${id_prefix}invalid_".sprintf('%03i',$_)} 1..$num;
 }
 # result can be table or count
 sub empty_result {

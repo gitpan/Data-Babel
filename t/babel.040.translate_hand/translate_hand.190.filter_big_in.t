@@ -29,21 +29,35 @@ sub doit {
     $filters{$filter_idtype}=[@regular_filter_ids,@extra_filter_ids];
   }
  my $correct=select_ur
-    (babel=>$babel,
+    (babel=>$babel,validate=>$OPTIONS->validate,
      input_idtype=>$input_idtype,filters=>\%regular_filters,output_idtypes=>\@idtypes);
   my $actual=$babel->$OP
-    (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>\@idtypes);
+    (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>\@idtypes,
+     validate=>$OPTIONS->validate);
   my $label="input_idtype=$input_idtype, filter_idtypes=@$filter_idtypes";
-  $ok&&is_quietly(scalar(@$correct),1,"BAD NEWS: select_ur got wrong number of rows!! $label") 
-    or return 0;
+  # $ok&&is_quietly(scalar(@$correct),1,"BAD NEWS: select_ur got wrong number of rows!! $label") 
+  #   or return 0;
   $ok&&=cmp_op_quietly($actual,$correct,$OP,$label) or return 0;
   # NG 10-11-08: test with limits of 0,1,2
   for my $limit (0,1,2) {
     my $actual=$babel->$OP
-      (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>\@idtypes,limit=>$limit);
+      (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>\@idtypes,
+       limit=>$limit,validate=>$OPTIONS->validate);
     my $label="input_idtype=$input_idtype, filter_idtypes=@$filter_idtypes, limit=$limit";
     $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__,$limit) or return 0;
   }
+  if ($OPTIONS->validate) {
+    my @input_ids=(make_ids($input_idtype),make_invalid_ids($input_idtype,1));
+    my $correct=select_ur
+      (babel=>$babel,validate=>1,
+       input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%regular_filters,
+       output_idtypes=>\@idtypes);
+    my $actual=$babel->$OP
+      (input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
+       output_idtypes=>\@idtypes,validate=>1);
+    my $label="input_idtype=$input_idtype, all input_ids + invalid, filter_idtypes=@$filter_idtypes";
+    $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__) or return 0;
+  }  
   $ok;
 }
 

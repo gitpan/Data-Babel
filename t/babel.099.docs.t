@@ -57,9 +57,19 @@ my $table=$babel->translate
    output_idtypes=>[qw(protein_uniprot)]);
 # convert to HASH for easy programmatic lookups
 my %gene2uniprot=map {$_[0]=>$_[1]} @$table;
-  # count number of Entrez Gene ids represented on Affy hgu133a
-  my $count=$babel->count
-    (input_idtype=>'gene_entrez',filters=>{chip_affy=>'hgu133a'});
+# count number of Entrez Gene ids represented on Affy hgu133a
+my $count=$babel->count
+  (input_idtype=>'gene_entrez',filters=>{chip_affy=>'hgu133a'});
+# tell which input ids are valid
+my $table=$babel->validate
+  (input_idtype=>'gene_entrez',
+   input_ids=>[1,2,3]);
+# print validity status of each
+for my $row (@$table) {
+  my($input_id,$valid,$current_id)=@$row;
+  print "Entrez gene $input_id is ",
+    ($valid? "valid with current value $current_id": 'invalid'),"\n";
+}
 SKIP1:
 my $name='test';
 my $idtypes=File::Spec->catfile(qw(examples idtype.ini));
@@ -95,7 +105,7 @@ report_pass($ok,
 	    'Data::Babel component-object attribute in METHODS AND FUNCTIONS',__FILE__,__LINE__);
 
 # CAUTION: translate assumes you've loaded the real database somehow
-goto SKIP2;
+goto SKIP_translate;
 my $table;
 $table=$babel->translate
   (input_idtype=>'gene_entrez',
@@ -111,7 +121,7 @@ $babel->translate(input_idtype=>'gene_entrez',
 $babel->translate(input_idtype=>'gene_entrez',
 		  filters=>{pathway_kegg_id=>[undef,4610]},
 		  output_idtypes=>[qw(gene_symbol)]);
-SKIP2:
+SKIP_translate:
 my @filters=
   (filters=>{chip_affy=>'hgu133a'},
    filters=>{chip_affy=>['hgu133a','hgu133plus2']},
@@ -124,15 +134,24 @@ my @filters=
 pass('translate in METHODS AND FUNCTIONS');
 
 # CAUTION: count assumes you've loaded the real database somehow
-goto SKIP3;
+goto SKIP_count;
 my $number;
 $number=$babel->count
   (input_idtype=>'gene_entrez',
    input_ids=>[1,2,3],
    filters=>{chip_affy=>'hgu133a'},
    output_idtypes=>[qw(transcript_refseq transcript_ensembl)]);
-SKIP3:
+SKIP_count:
 pass('count in METHODS AND FUNCTIONS');
+
+# CAUTION: validate assumes you've loaded the real database somehow
+goto SKIP_validate;
+my $table;
+$table=$babel->validate
+  (input_idtype=>'gene_entrez',
+   input_ids=>[1,2,3]);
+SKIP_validate:
+pass('validate in METHODS AND FUNCTIONS');
 
 # show: just make sure it prints something..
 # redirect STDOUT to a string. adapted from perlfunc
@@ -150,10 +169,10 @@ ok(!@errstrs,'check_schema array context in METHODS AND FUNCTIONS');
 $ok=$babel->check_schema;
 ok($ok,'check_schema scalar context in METHODS AND FUNCTIONS');
 
-goto SKIP4;
+goto SKIP_load_implicit_masters;
 $babel->load_implicit_masters;
-SKIP4:
-pass("load_implicit_masters");
+SKIP_load_implicit_masters:
+pass('load_implicit_masters in METHODS AND FUNCTIONS');
 
 my($idtype,$master,$maptable,$object,$name);
 $idtype=$babel->name2idtype('gene_entrez');

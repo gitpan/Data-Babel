@@ -193,6 +193,25 @@ my $actual=$babel->translate
 is($actual,$correct,'count input_ids=>scalar: option');
 
 ########################################
+# NG 12-11-23: added validate option
+my $correct=prep_tabledata($data->basics_validate_option->data);
+my $actual=$babel->translate
+  (input_idtype=>'type_001',
+   input_ids=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_011 
+		  type_001/a_110 type_001/a_111)],validate=>1,
+   output_idtypes=>['type_003']);
+cmp_table($actual,$correct,'translate with validate');
+
+########################################
+# NG 12-11-25: added validate method
+my $correct=prep_tabledata($data->basics_validate_method->data);
+my $actual=$babel->validate
+  (input_idtype=>'type_001',
+   input_ids=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_011 
+		  type_001/a_110 type_001/a_111)]);
+cmp_table($actual,$correct,'validate');
+
+########################################
 # NG 12-08-22: added filter
 my $correct=prep_tabledata($data->basics_filter->data);
 my $actual=$babel->translate

@@ -28,11 +28,10 @@ done_testing();
 sub doit {
   my($input_idtype,$input_ids,@output_idtypes)=@_;
   my $ok=1;
-  my $correct=select_ur
-    (babel=>$babel,
-     input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>\@output_idtypes);
-  my $actual=$babel->$OP
-      (input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>\@output_idtypes);
+  my @args=(input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>\@output_idtypes);
+  push(@args,validate=>1) if $OPTIONS->validate;
+  my $correct=select_ur(babel=>$babel,@args);
+  my $actual=$babel->$OP(@args);
   my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@output_idtypes";
   $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__) or return 0;
   $ok;

@@ -115,23 +115,21 @@ sub doit {
   my @output_names=map {$_->name} @$output_idtypes;
   my @filter_names=keys %$filters;
   
-  my($args,$label);
+  my(@args,$label);
   if ($input_ids ne 'all') {
-    $args=new Hash::AutoHash::Args
-      (input_idtype=>$input_idtype,input_ids=>$input_ids,filters=>$filters,
-       output_idtypes=>$output_idtypes);
+    @args=(input_idtype=>$input_idtype,input_ids=>$input_ids,filters=>$filters,
+	   output_idtypes=>$output_idtypes);
     $label=$OPTIONS->db_type.": input=$input_name, num input_ids=".
       (defined($input_ids)? scalar(@$input_ids): 0).
 	" filters=@filter_names, outputs=@output_names";
   } else {
-    $args=new Hash::AutoHash::Args
-      (input_idtype=>$input_idtype,input_ids_all=>1,filters=>$filters,
-       output_idtypes=>$output_idtypes);
-
+    @args=(input_idtype=>$input_idtype,input_ids_all=>1,filters=>$filters,
+	   output_idtypes=>$output_idtypes);
     $label=$OPTIONS->db_type.": input=$input_name, input_ids_all=1, filters=@filter_names, outputs=@output_names";
   }
-  my $correct=select_ur(babel=>$babel,%$args);
-  my $actual=$babel->$OP($args);
+  push(@args,validate=>1) if $OPTIONS->validate;
+  my $correct=select_ur(babel=>$babel,@args);
+  my $actual=$babel->$OP(@args);
   $ok&&=cmp_op_quietly($actual,$correct,$OP,"$OP $label",$file,$line);
   $ok;
 }

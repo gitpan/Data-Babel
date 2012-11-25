@@ -19,7 +19,7 @@ our @EXPORT=
       check_table check_database_sanity check_maptables_sanity check_masters_sanity 
       cleanup_db cleanup_ur
       cmp_objects cmp_objects_quietly cmp_table cmp_table_quietly
-      cmp_op cmp_op_quietly
+      cmp_op cmp_op_quietly cmp_op_quickly
       check_handcrafted_idtypes check_handcrafted_masters check_handcrafted_maptables
       check_handcrafted_name2idtype check_handcrafted_name2master check_handcrafted_name2maptable
       check_handcrafted_id2object check_handcrafted_id2name check_implicit_masters
@@ -202,11 +202,12 @@ sub load_ur {
 #              all semantics of filter=>undef
 # NG 12-11-18: added support for histories
 # NG 12-11-20: fixed input column for histories: 0th column is '_X_' if input has history
+# Ng 12-11-23: added validate
 # select data from ur (will actually work for any table)
 sub select_ur {
   my $args=new Hash::AutoHash::Args(@_);
-  my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters)=
-    @$args{qw(babel urname input_idtype input_ids output_idtypes filters)};
+  my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters,$validate)=
+    @$args{qw(babel urname input_idtype input_ids output_idtypes filters validate)};
   confess "input_idtype must be set. call select_ur_sanity instead" unless $input_idtype;
   # confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
   $urname or $urname=$args->tablename || 'ur';
@@ -215,6 +216,8 @@ sub select_ur {
     $input_ids=[$input_ids] unless ref $input_ids;
     confess "bad input id: ref or stringified ref"
       if grep {ref($_) || $_=~/ARRAY|HASH/} @$input_ids;
+    # NG 12-11-14: drop duplicate input ids so validate won't get extra invalid ids
+    $input_ids=[uniq(@$input_ids)];
   }
   my @output_idtypes=map {ref $_? $_->name: $_} @$output_idtypes;
   $filters=filters_array($filters) if ref $filters eq 'ARRAY';
@@ -223,7 +226,7 @@ sub select_ur {
   my $dbh=$babel->autodb->dbh;
   # NG 10-08-25: removed 'uniq' since duplicate columns are supposed to be kept
   # my @columns=uniq grep {length($_)} ($input_idtype,@output_idtypes);
-  # NG 12-09-04: include filter_idtypes so we can do filtering in Perl
+  # NG 12-09-04: include filterut_idtypes so we can do filtering in Perl
   # NG 12-09-04: test for length obsolete, since input_idtype required
   # my @columns=grep {length($_)} ($input_idtype,@filter_idtypes,@output_idtypes);
   # NG 12-11-20: 0th column is '_X_' if input has history
@@ -234,6 +237,8 @@ sub select_ur {
   my $columns=join(', ',@columns);
   my $sql=qq(SELECT DISTINCT $columns FROM $urname WHERE $columns[0] IS NOT NULL);
   my $table=$dbh->selectall_arrayref($sql);
+  # hang onto valid input ids if doing validate
+  my %valid=map {$_->[0]=>1} @$table if $validate;
 
   # now do filtering. columns are input, filters, then outputs, finally history columns
   my %name2idx=map {$columns[$_]=>$_} 0..$#columns;
@@ -251,8 +256,22 @@ sub select_ur {
 
   # NG 10-11-10: remove rows whose output columns are all NULL, because translate now skips these
   # NG 12-09-04: rewrote loop to one-liner below
-  @$table=grep {my @row=@$_; grep {defined $_} @row[1..$#row]} @$table if @output_idtypes;
-  
+  # NG 12-11-23: don't remove NULL rows when validate set
+  unless ($validate) {
+    @$table=grep {my @row=@$_; grep {defined $_} @row[1..$#row]} @$table if @output_idtypes;
+  } else {
+    # %id2valid maps input ids to validity
+    # %have_id tells which input ids are in result
+    # @missing_ids are input ids not in result - some are valid, some not
+    $input_ids=[keys %valid] unless $input_ids; # input_ids_all
+    my %id2valid=map {$_=>$valid{$_}||0} @$input_ids;
+    my %have_id=map {$_->[0]=>1} @$table;
+    my @missing_ids=grep {!$have_id{$_}} @$input_ids;
+    # existing rows are valid - splice in 'valid' column
+    map {splice(@$_,1,0,1)} @$table;
+    # add rows for missings ids - some valid, some not
+    push(@$table,map {[$_,$id2valid{$_},(undef)x@$output_idtypes]} @missing_ids);
+  }
   $table;
 }
 sub filter_ur {
@@ -473,7 +492,30 @@ sub cmp_op_quietly {
     confess "Unknow op $op: should be 'translate' or 'count'";
   }
 }
-
+# used by big IN tests, because cmp_op way too slow. assumes $correct bigger than $actual
+# quiet, even though name doesn't say so
+sub cmp_op_quickly {
+  my($actual,$correct,$op,$label,$file,$line,$limit)=@_;
+  my $correct_count=defined $limit? min(@$correct,$limit): @$correct;
+  if ($op eq 'count') {
+    return cmp_quietly($actual,$correct_count,$label,$file,$line);
+  } elsif ($op eq 'translate') {
+    my $actual_count=@$actual;
+    my $ok=cmp_quietly($actual_count,$correct_count,$label,$file,$line) or return 0;
+    my %correct=map {join($;,@$_)=>1} @$correct;
+    my @actual=map {join($;,@$_)} @$actual;
+    my @bad=grep {!$correct{$_}} @actual;
+    return 1 unless @bad;
+    ($file,$line)=called_from($file,$line);
+    fail($label);
+    diag("from $file line $line") if defined $file;
+    diag('actual has ',scalar(@bad),' row(s) that are not in correct',"\n",
+	 'sorry I cannot provide details...');
+    return 0;
+  } else {
+    confess "Unknown op $op: should be 'translate' or 'count'" ;
+  }
+}
 # sort subroutine: $a, $b are ARRAYs of strings. should be same lengths. cmp element by element
 sub cmp_rows {
   my $ret;

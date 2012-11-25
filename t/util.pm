@@ -13,7 +13,8 @@ use strict;
 our @ISA=qw(Exporter);
 our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode subtestdir rootpath
 	       as_bool flatten
-	       is_quietly cmp_quietly cmp_attrs report report_pass report_fail
+	       is_quietly is_loudly cmp_quietly cmp_attrs report report_pass report_fail 
+	       called_from
 	     );
 our($SCRIPT,$SCRIPTPATH,$SCRIPTBASENAME,$SCRIPTCODE,$ROOTPATH);
 sub script {$SCRIPT or (($SCRIPT,$SCRIPTPATH)=fileparse($0) and $SCRIPT);}
@@ -29,9 +30,16 @@ sub as_bool {$_[0]? 1: 0}
 sub flatten {map {'ARRAY' eq ref $_? @$_: $_} @_}
 
 # like is but reports errors the way we want
+sub is_loudly {
+  my($actual,$correct,$label,$file,$line)=@_;
+  my $ok=$actual eq $correct;
+  pass($label), return 1 if $ok;
+  report_fail($ok,"$label: expected $correct, got $actual",$file,$line);
+}
+# like is but reports errors the way we want
 sub is_quietly {
   my($actual,$correct,$label,$file,$line)=@_;
-  report_fail($actual eq $correct,"$label: expected $correct, got $actual",,$file,$line);
+  report_fail($actual eq $correct,"$label: expected $correct, got $actual",$file,$line);
 }
 
 # like cmp_deeply but reports errors the way we want

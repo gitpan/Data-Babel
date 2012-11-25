@@ -42,11 +42,10 @@ sub doit {
     my($filter_id)=make_ids($filter_idtype,$i);
     $filters{$filter_idtype}=$filter_id;
   }
-  my $correct=select_ur
-    (babel=>$babel,
-     input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
-  my $actual=$babel->$OP
-    (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+  my @args=(input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes);
+  push(@args,validate=>1) if $OPTIONS->validate;
+  my $correct=select_ur(babel=>$babel,@args);
+  my $actual=$babel->$OP(@args);
   my $label="$OP input_idtype=$input_idtype, all input_ids, filter_idtypes=@$filter_idtypes, filter_id=$i (as scalar), output_idtypes=@$output_idtypes";
   $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__) or return 0;
 
@@ -54,11 +53,22 @@ sub doit {
   # NG 12-10-14: don't bother if result empty, since too many cases
   return $ok if empty_result($actual);
   for my $limit (0,1,2) {
-    my $actual=$babel->$OP
-      (input_idtype=>$input_idtype,filters=>\%filters,output_idtypes=>$output_idtypes,
-       limit=>$limit);
+    my $actual=$babel->$OP(@args,limit=>$limit);
     my $label="$OP input_idtype=$input_idtype, all input_ids, filter_idtypes=@$filter_idtypes, filter_id=$i (as scalar), output_idtypes=@$output_idtypes, limit=$limit";
     $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__,$limit) or return 0;
   }
+  # if validate set, do with invalid input ids
+  if ($OPTIONS->validate) {
+    my @input_ids=(make_ids($input_idtype),make_invalid_ids($input_idtype,$i));
+    my $correct=select_ur
+      (babel=>$babel,validate=>1,
+       input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
+       output_idtypes=>$output_idtypes);
+    my $actual=$babel->$OP
+      (input_idtype=>$input_idtype,input_ids=>\@input_ids,filters=>\%filters,
+       output_idtypes=>$output_idtypes,validate=>1);
+    my $label="input_idtype=$input_idtype, all input_ids + invalid, filter_idtypes=@$filter_idtypes, filter_ids=$i (as scalar), output_idtypes=@$output_idtypes";
+    $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,__FILE__,__LINE__) or return 0;
+  }  
   $ok;
 }

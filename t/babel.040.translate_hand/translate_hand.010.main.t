@@ -31,12 +31,11 @@ done_testing();
 
 sub doit_all {
   my($input_idtype,@output_idtypes)=@_;
-  # my $id_prefix=($OPTIONS->history && grep {$input_idtype eq $_} qw(type_001 type_002))? "${input_idtype}/x_": "${input_idtype}/a_";
   my $ok=1;
   my $max_id=$OPTIONS->max_ids-1;
   for my $i (0..$max_id) {
-    # my @input_ids=map {"${id_prefix}$_"} @ids[0..$i];
     my @input_ids=make_ids($input_idtype,0..$i);
+    push(@input_ids,make_invalid_ids($input_idtype,$i+1)) if $OPTIONS->validate;
     $ok&&=doit($input_idtype,\@input_ids,\@output_idtypes,__FILE__,__LINE__) or return 0;
   }
   report_pass($ok,"$OP input=$input_idtype, outputs=".join(',',@output_idtypes));
@@ -44,21 +43,16 @@ sub doit_all {
 sub doit {
   my($input_idtype,$input_ids,$output_idtypes,$file,$line)=@_;
   my $ok=1;
-  # # my $input_ids=[map {/\D/? $_: $input_idtype.'/a_'.$ids[$_]} @$ids];
-  # my $input_ids=[map {"${input_idtype}/a_$ids[$_]"} @$ids];
-  my $correct=select_ur
-    (babel=>$babel,
-     input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
-  my $actual=$babel->$OP
-    (input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
+  my @args=(input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes);
+  push(@args,validate=>1) if $OPTIONS->validate;
+  my $correct=select_ur(babel=>$babel,@args);
+  my $actual=$babel->$OP(@args);
   my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes";
   $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,$file,$line) or return 0;
   # NG 10-11-08: test with limits of 0,1,2
   for my $limit (0,1,2) {
-    my $actual=$babel->$OP
-      (input_idtype=>$input_idtype,input_ids=>$input_ids,output_idtypes=>$output_idtypes,
-       limit=>$limit);
-    my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes, limit=$limit";
+    my $actual=$babel->$OP(@args,limit=>$limit);  
+ my $label="input_idtype=$input_idtype, input_ids=@$input_ids, output_idtypes=@$output_idtypes, limit=$limit";
     $ok&&=cmp_op_quietly($actual,$correct,$OP,$label,$file,$line,$limit) or return 0;
   }
   $ok;

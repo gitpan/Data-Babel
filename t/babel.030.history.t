@@ -66,8 +66,8 @@ $ok&&=is_quietly(scalar @$actual,$correct,'sanity test - ur selection type_1');
 report_pass($ok,'sanity test - ur construction and selection');
 
 # real tests
-my @input_ids=map {"retired_$_"} (1..3);
-doit(\@input_ids,0,__FILE__,__LINE__);
+my @ids=map {"retired_$_"} (1..3);
+doit(\@ids,0,__FILE__,__LINE__);
 
 for my $m (1..3) {
   my @x_ids=map {"x$_"} (1..$m);
