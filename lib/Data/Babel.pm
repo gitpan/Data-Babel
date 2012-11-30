@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.10_06';
+our $VERSION='1.10_07';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -192,7 +192,7 @@ sub validate {
   my $args=new Hash::AutoHash::Args(@_);
   confess "Required argument input_idtype missing" unless $args->input_idtype;
   $args->validate(1);
-  $args->output_idtypes([$args->input_idtype]);
+  $args->output_idtypes([$args->input_idtype]) unless defined $args->output_idtypes;
   $self->translate($args);
 }
 sub generate_query {
@@ -562,7 +562,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.10_06
+Version 1.10_07
 
 =head1 SYNOPSIS
 
@@ -1115,7 +1115,7 @@ can contain rows in which the output id does not match the filter.
  Returns : number
  Args    : same as 'translate'
 
-'count' is a wrapper for 'translate' that sets the 'count' argument to a true value.
+'count' is a wrapper for L<translate> that sets the 'count' argument to a true value.
 
 =head2 validate
 
@@ -1126,11 +1126,14 @@ can contain rows in which the output id does not match the filter.
  Function: Tell which input ids are valid now or in the past, and the mapping 
            from old to current values
  Returns : table represented as an ARRAY of ARRAYS. Each inner ARRAY is one row
-           of the result. The elements of each row are
+           of the result. If output_idtypes is omiited (the usual case), the 
+           elements of each row are
              0) input id as given
              1) validity status. 1 for valid; 0 for invalid
              2) current value of the id or undef if it has no current value; may
                 be the same as the original id
+           If output_idtypes is set, the result is ther same as 'translate' with
+           the 'validate' option set
  Args    : input_idtype   name of Data::Babel::IdType object or object
            input_ids      id or ARRAY of ids to be translated. If absent or
                           undef, all ids of the input type are translated. If an
@@ -1139,6 +1142,10 @@ can contain rows in which the output id does not match the filter.
            input_ids_all  boolean. If true, all ids of the input type are
                           translated. Same as omitting input_ids or setting it
                           to undef but more explicit.
+           output_idtypes optional and usually omitted. ARRAY of names of 
+                          Data::Babel::IdType objects or objects. If set,
+                          equivalent to calling 'translate' with the 'validate'
+                          option set
            limit          maximum number of rows to retrieve
 
 'validate' looks up the given input ids in the Master tables for the
@@ -1150,7 +1157,7 @@ the current value will always equal the given id if the id is valid.
 'validate' can also retrieve a complete table of valid ids (along with
 history information) for the type.
 
-'validate' is a wrapper for 'translate' that sets the 'validate'
+'validate' is a wrapper for L<translate> that sets the 'validate'
 argument to a true value and the output_idtypes argument to the
 input_idtype.  All other 'translate' arguments (filters, count) are
 legal here and work but are of dubious value.

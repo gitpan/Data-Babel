@@ -4,8 +4,9 @@ author:
   - 'Nat Goodman <natg@shore.net>'
 build_requires:
   Carp: 0
-  Class::AutoClass: 1.53
-  Config: 0
+  Class::AutoClass: 1.55
+  Class::AutoDB: 1.26
+  Config::IniFiles: 2.57
   Cwd: 3.26
   DBI: 1.604
   Exporter: 5.58
@@ -18,16 +19,17 @@ build_requires:
   Hash::AutoHash: 1.15
   Hash::AutoHash::Args: 1.14
   Hash::AutoHash::MultiValued: 1.14
-  List::MoreUtils: 0.09
-  List::Util: 1.14
+  List::MoreUtils: 0.33
+  List::Util: 1.23
   Math::BaseCalc: 1.009
-  Scalar::Util: 1.01
+  Scalar::Util: 1.23
   Set::Scalar: 1.22
   Storable: 2.16
   TAP::Harness: 3.12
   Test::Deep: 0.11
   Test::More: 0.88
   Text::Abbrev: 1.01
+  Tie::ToObject: 0.03
 configure_requires:
   DBI: 1.604
   Module::Build: 0.4
@@ -41,7 +43,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.10_06
+    version: 1.10_07
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -68,8 +70,9 @@ provides:
     version: 0
 requires:
   Carp: 0
-  Class::AutoClass: 1.53
-  Class::AutoDB: 1.2
+  Class::AutoClass: 1.55
+  Class::AutoDB: 1.26
+  Class::Singleton: 1.4
   Config::IniFiles: 2.57
   DBI: 1.604
   File::Basename: 0
@@ -78,8 +81,9 @@ requires:
   Hash::AutoHash: 1.15
   Hash::AutoHash::Args: 1.14
   Hash::AutoHash::MultiValued: 1.14
-  List::MoreUtils: 0.09
+  List::MoreUtils: 0.33
   Template: 2.2
+  Tie::ToObject: 0.03
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.10_06
+version: 1.10_07
