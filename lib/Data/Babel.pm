@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.10_07';
+our $VERSION='1.10';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -562,7 +562,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.10_07
+Version 1.10
 
 =head1 SYNOPSIS
 

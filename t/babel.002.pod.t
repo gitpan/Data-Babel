@@ -19,6 +19,7 @@ SKIP: {
   my $builder=t::Build->current;
   my $module_pm=File::Spec->catdir('blib',$builder->dist_version_from);
   my $correct_version=$builder->dist_version;
+  $correct_version=~s/_.*//;	# strip development sub-version number
   pod_section_like($module_pm,'VERSION',qr/Version $correct_version$/,'version number in POD');
 }
 
