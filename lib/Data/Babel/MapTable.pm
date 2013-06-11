@@ -20,7 +20,7 @@ use Class::AutoClass;
 use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES @CLASS_ATTRIBUTES %SYNONYMS %AUTODB);
 use base qw(Data::Babel::Base);
 
-# babel, name, id, autodb, log, verbose - methods defined in Base
+# babel, name, id, autodb, verbose - methods defined in Base
 # inputs, namespace, query are for Pipeline. 
 #   used here to generate Pipeline Steps for implicit masters
 #   will be needed someday for redundant MapTables
@@ -55,6 +55,16 @@ sub connect_idtypes {
 #     ([map {$babel->name2idtype($_) 
 # 	     or confess "MapTable ".$self->name." contains unkown IdType $_"}
 #       split(/\s+/,$idtypes)]);
+}
+# NG 13-06-11: check for unkown IdTypes before connecting to MapTables
+sub unknown_idtypes {
+  my $self=shift;
+  my $babel=$self->babel;
+  my $idtypes=$self->idtypes;
+  # split $idtypes if string
+  my @idtypes=ref $idtypes? @$idtypes: split(/\s+/,$idtypes);
+  # only have to check IdTypes that are passed as strings
+  grep {!ref $_ && !$babel->name2idtype($_)} @idtypes;
 }
 # only used in collection
 sub idtype_names {

@@ -1,4 +1,4 @@
-Data-Babel
+Data::Babel
 
 This module translates biological identifiers based on information
 contained in a database.  The principal method is 'translate' which

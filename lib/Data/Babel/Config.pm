@@ -59,7 +59,9 @@ sub ReadConfig {
   my $self=shift;
   my($filename,$tt)=$self->get(qw(filename tt));
   my $handle;
-  open($handle,$filename) || confess "Cannot open file $filename: $!";
+  # NG 13-06-10: use 3-argument form of open to handle in-memory files
+  # open($handle,$filename) || confess "Cannot open file $filename: $!";
+  open($handle,'<',$filename) || confess "Cannot open file $filename: $!";
   if ($tt) {
     my $template = new Template
       (RELATIVE => 1,

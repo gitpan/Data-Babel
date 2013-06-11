@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.10';
+our $VERSION='1.11_01';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -33,7 +33,7 @@ use Data::Babel::HAH_MultiValued;
 use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES %SYNONYMS %DEFAULTS %AUTODB);
 use base qw(Data::Babel::Base);
 
-# name, id, autodb, log, verbose - methods defined in Base
+# name, id, autodb, verbose - methods defined in Base
 @AUTO_ATTRIBUTES=qw();
 @OTHER_ATTRIBUTES=qw(idtypes masters maptables schema_graph);
 %SYNONYMS=();
@@ -56,15 +56,22 @@ sub _init_self {
   # connect Masters to their IdTypes & vice versa
   map {$_->connect_idtype} @{$self->masters};
   map {$_->idtype->connect_master} @{$self->masters};
+  # NG 13-06-11: check for unkown IdTypes before connecting to MapTables
+  my @unknowns=uniq(map {$_->unknown_idtypes} @{$self->maptables});
+  confess "Unknown IdType(s) appear in MapTables: ",join(', ',@unknowns) if @unknowns;
   # connect MapTables to their IdTypes and vice versa
   map {$_->connect_idtypes} @{$self->maptables};
   for my $maptable (@{$self->maptables}) {
     map {$_->add_maptable($maptable)} @{$maptable->idtypes};
   }
+  # NG 13-06-11: check for isolated IdTypes
+  my @isolateds=grep {$_->degree==0} @{$self->idtypes};
+  confess "Some IdType(s) are 'isolated', ie, not in any MapTable: ",
+    join(', ',map {$_->name} @isolateds) if @isolateds;
   # create schema graph
   $self->schema_graph;
   # make implicit masters and connect them up
-  $self->make_imps;
+  $self->make_implicit_masters;
   # store Babel and component objects
   # NG 10-08-24: only store if autodb set
   if (my $autodb=$self->autodb) {
@@ -127,6 +134,10 @@ sub translate {
   my $sql=$self->generate_query($args);
   my $dbh=$args->dbh || $self->autodb->dbh;
   # my $results=$args->count? $dbh->selectrow_array($sql): $dbh->selectall_arrayref($sql);
+  # NG 13-06-11: added this code to display query
+  if ($self->verbose) {
+    print "$sql\n";
+  }
   my $results=$dbh->selectall_arrayref($sql);
   confess "Database query failed:\n$sql\n".$dbh->errstr if $dbh->err;
   unless ($args->validate) {
@@ -144,7 +155,8 @@ sub translate {
     # %have_id tells which input ids are in result
     # @missing_ids are input ids not in result - some are valid, some not
     # %id2valid maps input ids to validity
-    my %have_id=map {$_->[0]=>1} @$results;
+    # NG 13-06-10: convert to lower case for case insensitive comparisons
+    my %have_id=map {lc $_->[0]=>1} @$results;
     my @missing_ids;
     my %id2valid;
 
@@ -165,8 +177,9 @@ sub translate {
       %id2valid=map {$_=>1} @$valid_ids;
       @input_ids=@$valid_ids unless defined $input_ids;
     }
-    @missing_ids=grep {!$have_id{$_}} @input_ids;
-    push(@$results,map {[$_,$id2valid{$_}||0,(undef)x$num_outputs]} @missing_ids);
+    # NG 13-06-10: convert to lower case for case insensitive comparisons
+    @missing_ids=grep {!$have_id{lc $_}} @input_ids;
+    push(@$results,map {[$_,$id2valid{lc $_}||0,(undef)x$num_outputs]} @missing_ids);
  
     # post-processing
     # 1) count. return number of rows
@@ -359,7 +372,8 @@ sub make_query_graph {
 #   if IdType joins 2 or more MapTables, Master is TABLE (UNION over MapTables)
 #   if IdType contained in 1 MapTable, Master is VIEW
 # NG 10-11-10: added clauses to exclude NULLs
-sub make_imps {
+# NG 13-06-11: renamed to make_implicit_masters
+sub make_implicit_masters {
   my $self=shift;
   my $schema_graph=$self->schema_graph;
   my %idtype2master=map {$_->idtype->name => $_} @{$self->masters};
@@ -383,8 +397,7 @@ sub make_imps {
     $idtype->master($master);	     # connect new Master to its IdType
   }
 }
-# NG 12-09-27: added load_implicit_masters (just stub for now)
-#              in stub, create tables, since otherwise tests crash.
+# NG 12-09-27: added load_implicit_masters
 sub load_implicit_masters {
   my $self=shift;
   my $dbh=$self->dbh;
@@ -429,10 +442,29 @@ sub show {
   print "\nschema_graph:\n";
   show_graph($self->schema_graph);
 }
+# NG 13-06-11: emit schema graph in SIF - currently very simple, basically proof of concept
+sub show_schema_graph {
+  my($self,$file,$format)=@_;
+  length($format)? $format=lc($format): ($format='sif');
+  confess "Invalid format $format: must be sif or txt" unless $format=~/sif|txt/;
+  if ($file) {
+    open(OUT,'>',$file) || confess "Cannot create output file $file: $!";
+  } else {
+    *OUT=*STDOUT;
+  }
+  my $graph=$self->schema_graph;
+  if ($format eq 'sif') {
+    print OUT join("\n",map {my($v0,$v1)=@$_;"$v0 - $v1"} $graph->edges),"\n";
+  } else {
+    print OUT '  ',join("\n  ",map {_edge_str($graph,$_)} _sort_edges($graph->edges)),"\n";
+  }
+  close OUT if $file;
+}
+
 # can be called as function or method
 sub show_graph {
   my $graph=ref($_[0]) && $_[0]->isa('Graph')? $_[0]: $_[1];
-  print '  ',join("\n  ",map {_edge_str($graph,$_)} _sort_edges($graph->edges)),"\n";
+  print '  ',join("\n",map {_edge_str($graph,$_)} _sort_edges($graph->edges)),"\n";
 }
 sub _sort_edges {
   my @edges=map {$_->[0] le $_->[1]? $_: [$_->[1],$_->[0]]} @_;
@@ -562,7 +594,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.10
+Version 1.11
 
 =head1 SYNOPSIS
 
@@ -1516,14 +1548,13 @@ This module extends a version developed by Victor Cassen.
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2010 Institute for Systems Biology
+Copyright 2012 Institute for Systems Biology
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
 by the Free Software Foundation; or the Artistic License.
 
 See http://dev.perl.org/licenses/ for more information.
-
 
 =cut
 

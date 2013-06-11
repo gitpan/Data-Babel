@@ -88,6 +88,35 @@ close STDOUT;
 open STDOUT,">&",$oldout or fail("show: can't restore STDOUT: $!");
 ok(length($showout)>500,'show');
 
+# show_schema_graph: just make sure it prints right number of lines.
+my $correct=6;
+my $showout;
+open my $oldout,">&STDOUT" or fail("show: can't dup STDOUT: $!");
+close STDOUT;
+open STDOUT, '>',\$showout or fail("show: can't redirect STDOUT to string: $!");
+$babel->show_schema_graph;
+close STDOUT;
+open STDOUT,">&",$oldout or fail("show: can't restore STDOUT: $!");
+is(scalar(split("\n",$showout)),$correct,'show_schema_graph sif (implicit)');
+
+my $showout;
+open my $oldout,">&STDOUT" or fail("show: can't dup STDOUT: $!");
+close STDOUT;
+open STDOUT, '>',\$showout or fail("show: can't redirect STDOUT to string: $!");
+$babel->show_schema_graph(undef,'sif');
+close STDOUT;
+open STDOUT,">&",$oldout or fail("show: can't restore STDOUT: $!");
+is(scalar(split("\n",$showout)),$correct,'show_schema_graph sif (explicit)');
+
+my $showout;
+open my $oldout,">&STDOUT" or fail("show: can't dup STDOUT: $!");
+close STDOUT;
+open STDOUT, '>',\$showout or fail("show: can't redirect STDOUT to string: $!");
+$babel->show_schema_graph(undef,'txt');
+close STDOUT;
+open STDOUT,">&",$oldout or fail("show: can't restore STDOUT: $!");
+is(scalar(split("\n",$showout)),$correct,'show_schema_graph txt (explicit)');
+
 # check_schema: should be true.
 my @errstrs=$babel->check_schema;
 ok(!@errstrs,'check_schema array context');
@@ -316,26 +345,49 @@ my $actual=$babel->translate
 cmp_table($actual,$correct,'translate using objects as idtypes');
 
 ########################################
-# make schema bad in all possible ways: cyclic, disconnected, uncovered IdType
+# make schema bad in all possible ways: cyclic, disconnected, isolated IdType, unknown IdType
 use Data::Babel::MapTable;
 my $cyclic_maptable=new Data::Babel::MapTable(name=>'cyclic',idtypes=>'type_004 type_001');
-my @isolated_idtypes=
-  (new Data::Babel::IdType(name=>'isolated_1'),new Data::Babel::IdType(name=>'isolated_2'));
-my $isolated_maptable=new Data::Babel::MapTable
-  (name=>'isolated',idtypes=>'isolated_1 isolated_2');
-my $uncovered_idtype=new Data::Babel::IdType(name=>'uncovered');
+my @disconnected_idtypes=
+  (new Data::Babel::IdType(name=>'disconnected_1'),
+   new Data::Babel::IdType(name=>'disconnected_2'));
+my $disconnected_maptable=new Data::Babel::MapTable
+  (name=>'disconnected',idtypes=>'disconnected_1 disconnected_2');
+my $isolated_idtype=new Data::Babel::IdType(name=>'isolated');
+my $unknown_maptable=new Data::Babel::MapTable(name=>'unknown',idtypes=>'unknown type_001');
 
+# NG 13-06-11: Babel constructor tests for isolated and unknown IdTypes, so don't
+#              include in first test
 my $bad=new Data::Babel
   (name=>'bad',
-   idtypes=>[@$idtypes,@isolated_idtypes,$uncovered_idtype],masters=>$masters,
-   maptables=>[@$maptables,$cyclic_maptable,$isolated_maptable]);
+   idtypes=>[@$idtypes,@disconnected_idtypes],masters=>$masters,
+   maptables=>[@$maptables,$cyclic_maptable,$disconnected_maptable]);
 
 my @errstrs=$bad->check_schema;
-ok((@errstrs==3 && 
+ok((@errstrs==2 && 
    grep(/not connected/,@errstrs) && 
-   grep(/cyclic/,@errstrs) &&
-   grep(/IdTypes not contained/,@errstrs)),
-   'check_schema array context: really bad schema');
-ok(!$bad->check_schema,'check_schema boolean context:  really bad schema');
+   grep(/cyclic/,@errstrs)),
+   'check_schema array context: bad schema - disconnected, cyclic');
+ok(!$bad->check_schema,'check_schema boolean context: bad schema - disconnected, cyclic');
+
+# NG 13-06-11: Babel constructor tests for isolated and unknown IdTypes
+eval {
+  my $bad=new Data::Babel
+    (name=>'bad',
+     idtypes=>[@$idtypes,$isolated_idtype],masters=>$masters,
+     maptables=>$maptables);
+};
+my $err=$@;
+my $err_head='Some IdType\(s\) are \'isolated\', ie, not in any MapTable:';
+like($err,qr/^$err_head/,'bad schema - isolated IdType');
+
+eval {
+  my $bad=new Data::Babel
+    (name=>'bad',
+     idtypes=>$idtypes,masters=>$masters,maptables=>[@$maptables,$unknown_maptable]);
+};
+my $err=$@;
+my $err_head='Unknown IdType\(s\) appear in MapTables:';
+like($err,qr/^$err_head/,'bad schema - unknown IdType');
 
 done_testing();

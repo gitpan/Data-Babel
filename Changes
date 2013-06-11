@@ -1,5 +1,17 @@
 Revision history for Data-Babel
 
+1.11_01 2013-06-11
+	Bug fixes
+	- in 'validate', check for unmatched ids has to be case insensitive 
+	  because MySQL does case intensive comparisons, e.g., searching for 
+	  'htt' as gene_symbol
+    	- detect isolated IdTypes, ie, IdTypes not contained in any MapTable.
+          previously, load_implicit_masters would generate illegal empty query
+	New features
+	- can specify history in IdType, rather than just in Master
+	- new 'show_schema_graph' method
+	Deleted vestigal logging code, mostly from Data::Babel::Base
+----------
 1.10	2012-12-02 - external changes since 1.03
 	New features
 	* new 'translate' options

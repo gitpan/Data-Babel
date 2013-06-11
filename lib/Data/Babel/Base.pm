@@ -5,7 +5,7 @@ use Hash::AutoHash::Args qw(autoargs_exists);
 use vars qw(@AUTO_ATTRIBUTES @CLASS_ATTRIBUTES %SYNONYMS %AUTODB);
 use base qw(Class::AutoClass);
 @AUTO_ATTRIBUTES=qw(name babel);
-@CLASS_ATTRIBUTES=qw(autodb log verbose);
+@CLASS_ATTRIBUTES=qw(autodb verbose);
 %SYNONYMS=();
 Class::AutoClass::declare;
 
@@ -20,11 +20,9 @@ sub old {
     # $autodb=$class->autodb;
   } else {
     my $args=new Hash::AutoHash::Args(@_);
-    my($log,$verbose);
-    ($name,$autodb,$log,$verbose)=
-      @$args{qw(name autodb log verbose)}; # okay for autodb,... to be absent
+    my $verbose;
+    ($name,$autodb,$verbose)=@$args{qw(name autodb verbose)}; # okay for autodb,... to be absent
     $class->autodb($autodb) if $autodb;
-    $class->log($log) if $log;
     $class->verbose($verbose) if $verbose;
   }
   $autodb or $autodb=$class->autodb;

@@ -18,7 +18,7 @@ our @EXPORT=
       select_ur filter_ur count_ur select_ur_sanity 
       check_table check_database_sanity check_maptables_sanity check_masters_sanity 
       cleanup_db cleanup_ur
-      cmp_objects cmp_objects_quietly cmp_table cmp_table_quietly
+      cmp_objects cmp_objects_quietly cmp_table cmp_table_quietly cmp_table_nocase
       cmp_op cmp_op_quietly cmp_op_quickly
       check_handcrafted_idtypes check_handcrafted_masters check_handcrafted_maptables
       check_handcrafted_name2idtype check_handcrafted_name2master check_handcrafted_name2maptable
@@ -202,12 +202,13 @@ sub load_ur {
 #              all semantics of filter=>undef
 # NG 12-11-18: added support for histories
 # NG 12-11-20: fixed input column for histories: 0th column is '_X_' if input has history
-# Ng 12-11-23: added validate
+# NG 12-11-23: added validate
+# NG 13-06-10: changed to do case insensitive comparisons, eg, searching for 'htt' as gene_symbol
 # select data from ur (will actually work for any table)
 sub select_ur {
   my $args=new Hash::AutoHash::Args(@_);
-  my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters,$validate)=
-    @$args{qw(babel urname input_idtype input_ids output_idtypes filters validate)};
+  my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters,$validate,$nocase)=
+    @$args{qw(babel urname input_idtype input_ids output_idtypes filters validate nocase)};
   confess "input_idtype must be set. call select_ur_sanity instead" unless $input_idtype;
   # confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
   $urname or $urname=$args->tablename || 'ur';
@@ -238,7 +239,8 @@ sub select_ur {
   my $sql=qq(SELECT DISTINCT $columns FROM $urname WHERE $columns[0] IS NOT NULL);
   my $table=$dbh->selectall_arrayref($sql);
   # hang onto valid input ids if doing validate
-  my %valid=map {$_->[0]=>1} @$table if $validate;
+  # NG 13-06-10: added 'lc' for case insensitive comparisons
+  my %valid=map {lc $_->[0]=>1} @$table if $validate;
 
   # now do filtering. columns are input, filters, then outputs, finally history columns
   my %name2idx=map {$columns[$_]=>$_} 0..$#columns;
@@ -264,9 +266,10 @@ sub select_ur {
     # %have_id tells which input ids are in result
     # @missing_ids are input ids not in result - some are valid, some not
     $input_ids=[keys %valid] unless $input_ids; # input_ids_all
-    my %id2valid=map {$_=>$valid{$_}||0} @$input_ids;
-    my %have_id=map {$_->[0]=>1} @$table;
-    my @missing_ids=grep {!$have_id{$_}} @$input_ids;
+    # NG 13-06-10: added 'lc' for case insensitive comparisons
+    my %id2valid=map {my $id=lc $_; $id=>$valid{$id}||0} @$input_ids;
+    my %have_id=map {lc $_->[0]=>1} @$table;
+    my @missing_ids=grep {!$have_id{lc $_}} @$input_ids;
     # existing rows are valid - splice in 'valid' column
     map {splice(@$_,1,0,1)} @$table;
     # add rows for missings ids - some valid, some not
@@ -274,6 +277,7 @@ sub select_ur {
   }
   $table;
 }
+# NG 13-06-10: changed to do case insensitive comparisons
 sub filter_ur {
   my($table,$col,$ids)=@_;
   if (defined $ids) {
@@ -285,7 +289,8 @@ sub filter_ur {
       my @defined_ids=grep {defined $_} @$ids;
       # NG 12-10-29: changed pattern to match entire field
       my $pattern=join('|',map {"\^$_\$"} @defined_ids);
-      $pattern=qr/$pattern/;
+      # NG 13-06-01: added 'i' for case insensitive matching
+      $pattern=qr/$pattern/i;
       @table1=grep {$_->[$col]=~/$pattern/} @$table if @defined_ids;
       @table2=grep {!defined $_->[$col]} @$table if @defined_ids!=@$ids;
       @$table=(@table1,@table2);
@@ -297,10 +302,12 @@ sub filter_ur {
   }
   $table;
 }
+# NG 13-06-10: changed to do case insensitive comparisons
 # remove duplicate rows from table
 sub uniq_rows {
   my($rows)=@_;
-  my @row_strings=map {join($;,@$_)} @$rows;
+  # NG 13-06-10: added 'lc' for case insensitive comparisons
+  my @row_strings=map {lc join($;,@$_)} @$rows;
   my %seen;
   my $uniq_rows=[];
   for(my $i=0; $i<@$rows; $i++) {
@@ -446,6 +453,21 @@ sub cmp_table {
   my $ok=cmp_table_quietly($actual,$correct,$label,$file,$line,$limit);
   report_pass($ok,$label);
 }
+# NG 13-06-10: added cmp_table_nocase for case insensitive comparisons, eg,
+#   searching for 'htt' as gene_symbol
+sub cmp_table_nocase {
+  my($actual,$correct,$label,$file,$line,$limit)=@_;
+  my @actual=map {_lc_row($_)} @$actual;
+  my @correct=map {_lc_row($_)} @$correct;
+  my $ok=cmp_table_quietly(\@actual,\@correct,$label,$file,$line,$limit);
+  report_pass($ok,$label);
+}
+sub _lc_row {
+  my @row=@{$_[0]};
+  @row=map {lc($_)} @row;
+  \@row;
+}
+
 sub cmp_table_quietly {
   my($actual,$correct,$label,$file,$line,$limit)=@_;
   unless (defined $limit) {

@@ -20,7 +20,7 @@ use Class::AutoClass;
 use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES @CLASS_ATTRIBUTES %SYNONYMS %DEFAULTS %AUTODB);
 use base qw(Data::Babel::Base);
 
-# babel, name, id, autodb, log, verbose - methods defined in Base
+# babel, name, id, autodb, verbose - methods defined in Base
 @AUTO_ATTRIBUTES=qw(master maptables referent defdb meta format sql_type internal);
 @OTHER_ATTRIBUTES=qw(display_name external tablename history);
 @CLASS_ATTRIBUTES=qw();
@@ -39,6 +39,11 @@ sub connect_master {
   my $master_name=$self->name.'_master'; # append '_master' to idtype name
   $self->{master}=$self->babel->name2master($master_name)
     or confess 'Trying to connect IdType '.$self->name.' to non-existent Master';
+  # NG 13-06-11: propogate history if it exists
+  if (exists $self->{history}) {
+    $self->master->history($self->{history}) unless $self->master->history;
+    delete $self->{history};
+  }
 }
 # must run after Babel initialized
 sub add_maptable {push(@{shift->maptables},shift)}
@@ -62,10 +67,12 @@ sub tablename {
   my $self=shift;
   defined $self->master && $self->master->tablename(@_);
 }
-# history - delegates to master
+# history - delegate to master
+# NG 13-06-11: maintain history here until connected to master
 sub history {
   my $self=shift;
-  defined $self->master && $self->master->history(@_);
+  return $self->master->history(@_) if defined $self->master;
+  @_? $self->{history}=$_[0]: $self->{history};
 }
 
 # NG 10-08-08. sigh.'verbose' in Class::AutoClass::Root conflicts with method in Base

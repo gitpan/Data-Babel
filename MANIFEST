@@ -1,4 +1,3 @@
-1
 Build.PL
 Changes
 conf/maptable_header.tt
@@ -22,6 +21,7 @@ README
 t/babel.000.code_exists.t
 t/babel.001.boilerplate.t
 t/babel.002.pod.t
+t/babel.003.manifest.t
 t/babel.010.basics.t
 t/babel.012.internal_idtype.t
 t/babel.020.persist.t
@@ -83,6 +83,17 @@ t/babel.107.filter_undef.t
 t/babel.108.input_scalar.t
 t/babel.109.input_undef.t
 t/babel.110.dup_ins.t
+t/babel.111.pseudo_dups.dir/pseudo_dups.data.ini
+t/babel.111.pseudo_dups.dir/pseudo_dups.idtype.ini
+t/babel.111.pseudo_dups.dir/pseudo_dups.maptable.ini
+t/babel.111.pseudo_dups.dir/pseudo_dups.master.ini
+t/babel.111.pseudo_dups.t
+t/babel.112.validate_case.t
+t/babel.113.idtype_isolated.t
+t/babel.114.idtype_unknown.t
+t/babel.115.idtype_history.t
+t/brain_genes.edit.txt
+t/brain_genes.txt
 t/Build.pm
 t/handcrafted.data.ini
 t/handcrafted.idtype.ini

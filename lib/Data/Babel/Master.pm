@@ -20,7 +20,7 @@ use Class::AutoClass;
 use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES @CLASS_ATTRIBUTES %SYNONYMS %AUTODB);
 use base qw(Data::Babel::Base);
 
-# babel, name, id, autodb, log, verbose - methods defined in Base
+# babel, name, id, autodb, verbose - methods defined in Base
 # inputs, namespace, query, view are for Pipeline. 
 #   used here to generate Pipeline Steps for implicit masters
 #   will be needed someday for redundant MapTables
@@ -48,6 +48,11 @@ sub connect_idtype {
   $idtype_name=~s/_master$//;	# strip _master from Master name
   $self->{idtype}=$self->babel->name2idtype($idtype_name)
     or confess 'Trying to define Master for unkown IdType '.$idtype_name;
+  # NG 13-06-11: propogate history from idtype if it exists
+  if (exists $self->idtype->{history}) {
+    $self->history($self->idtype->{history}) unless $self->history;
+    delete $self->idtype->{history};
+  }
 }
 # opposite of implicit
 sub explicit {
