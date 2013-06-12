@@ -1,5 +1,9 @@
 Revision history for Data-Babel
 
+1.11_02 2013-06-12
+	Bug fixes
+	- Fixed tests that failed because of hash key randomization in 5.18
+
 1.11_01 2013-06-11
 	Bug fixes
 	- in 'validate', check for unmatched ids has to be case insensitive 

@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.11_01';
+our $VERSION='1.11_02';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -673,7 +673,14 @@ also call it without any input ids (or with the special option
 'input_ids_all' set) to generate a complete mapping of the input type
 to the output types.  This is convenient if you want to hang onto the
 mapping for repeated use.  You can also filter the output based on
-values of other identifier types.
+values of other identifier types.  
+
+Comparisons are done in a B<case insensitive> manner.  This includes
+input ids, filters, and internal comparisons used to join database
+tables.  For example, when translating the gene symbol 'HTT' (the
+human Huntington Disease gene), you will also get information on gene
+symbol 'Htt' (the mouse and rat ortholog of the human gene) assuming,
+of course, this information is in the database.
 
 CAVEAT: Some features of Data::Babel are overly specific to the
 procedure we use to construct the underlying Babel database.  We note
@@ -778,6 +785,10 @@ The section name is the IdType name. The parameters are
 
 =back
 
+As of version 1.11, it is also possible to specify 'history' for an
+IdType. Previously, you could only specify 'history' for the IdType's
+Master.
+
 Master
 
   [gene_entrez_master]
@@ -805,6 +816,10 @@ The next example illustrates a Master that includes history information.
     ON locus_link_eid=new_locus_link_eid
   QUERY
   history=1
+
+As of version 1.11, it is also possible to specify 'history' for an
+IdType. Previously, you could only specify 'history' for the IdType's
+Master.
 
 A Master without history is implemented as a one column table whose
 column has the same name as the IdType.
@@ -1070,7 +1085,14 @@ output columns.
 
 =item * If no output idtypes are specified, the output will contain
 one row for each valid input id (by default) or one row for each id
-whether valid or not (if 'validate' is set). 
+whether valid or not (if 'validate' is set).
+
+=item * Comparisons are B<case insensitive>.  This includes input ids,
+filters, and internal comparisons used to join database tables.  For
+example, when translating the gene symbol 'HTT' (the human Huntington
+Disease gene), you will also get information on gene symbol 'Htt' (the
+mouse and rat ortholog of the human gene) assuming, of course, this
+information is in the database.
 
 =back
 
@@ -1097,6 +1119,8 @@ is equivalent to
   filters=>{chip_affy=>['hgu133a','hgu133plus2']}
 
 If a filter value is an empty ARRAY, ie, [], the result will be empty.
+
+As noted in L<Notes on translate>, comparisons are B<case insensitive>.
 
 If a filter value is undef, all ids of the given type are acceptable.
 This limits the output to rows for which the filter type is not
@@ -1214,6 +1238,8 @@ always be undef.
 =item * The 'translate' arguments 'filters' and 'count' are legal here
 and work but are of dubious value.
 
+=item * As noted in L<Notes on translate>, comparisons are B<case insensitive>.
+
 =back
 
 =head2 show
@@ -1223,6 +1249,23 @@ and work but are of dubious value.
  Function: Print object in readable form
  Returns : nothing useful
  Args    : none
+
+=head2 show_schema_graph
+
+ Title   : show_schema_graph
+ Usage   : $babel->show_schema_graph('schema.sif','sif')
+ Function: Emit schema graph in text or sif format
+ Returns : nothing useful
+ Args    : file           output filename. default: standard out
+           format         'sif' or 'txt'. default: 'sif'
+
+=over 2
+
+=item * The current version is a minimal implementation, little more than a proof of concept. 
+
+=item * At present, a website that can display the sif output is L<http://cytoscapeweb.cytoscape.org/demo>.
+
+=back
 
 =head2 check_schema
 

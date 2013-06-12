@@ -14,7 +14,7 @@ lib/Data/Babel/IdType.pm
 lib/Data/Babel/MapTable.pm
 lib/Data/Babel/Master.pm
 Makefile.PL
-MANIFEST
+MANIFEST			This list of files
 META.json
 META.yml
 README

@@ -12,7 +12,7 @@ use strict;
 
 our @ISA=qw(Exporter);
 our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode subtestdir rootpath
-	       as_bool flatten
+	       as_bool as_list flatten
 	       is_quietly is_loudly cmp_quietly cmp_attrs report report_pass report_fail 
 	       called_from
 	     );
@@ -27,6 +27,7 @@ sub subtestdir {File::Spec->catdir(scriptpath,scriptbasename)}
 sub rootpath {$ROOTPATH or $ROOTPATH=cwd}
 
 sub as_bool {$_[0]? 1: 0}
+sub as_list {my $list=@_>1? [@_]: (ref $_[0]? $_[0]: ([split(/\s+/,$_[0])]))}
 sub flatten {map {'ARRAY' eq ref $_? @$_: $_} @_}
 
 # like is but reports errors the way we want
