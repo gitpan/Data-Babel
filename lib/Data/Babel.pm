@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.11_02';
+our $VERSION='1.11_03';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #

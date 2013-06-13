@@ -1,8 +1,14 @@
 Revision history for Data-Babel
 
+1.11_03 2013-06-13
+	Bug fixes
+	- Fixed more tests that failed because of hash key randomization in 5.18.
+	  thanks again to CPAN testers for finding this problem!
+
 1.11_02 2013-06-12
 	Bug fixes
-	- Fixed tests that failed because of hash key randomization in 5.18
+	- Fixed tests that failed because of hash key randomization in 5.18.
+	  thanks to CPAN testers for finding this problem!
 
 1.11_01 2013-06-11
 	Bug fixes

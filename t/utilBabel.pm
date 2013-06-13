@@ -690,7 +690,16 @@ QUERY
       or return 0;
     report_fail(scrunched_eq($actual->namespace,$namespace),"$label object $i: namespace") 
       or return 0;
-    report_fail(scrunched_eq($actual->query,$query),"$label object $i: query") or return 0;
+    # NG 13-06-13: for $i==2 (type_003_master), query is UNION over columns from 2 MapTables
+    #              as of perl 5.18, order of MapTables not guaranteed
+    if ($i!=2) {
+      report_fail(scrunched_eq($actual->query,$query),"$label object $i: query") or return 0;
+    } else {
+      my @actual=split(/\s+UNION\s+/,$actual->query);
+      $query=~s/^\s+|\s+$//mg;
+      my @correct=split(/\s+UNION\s+/,$query);
+      report_fail(cmp_set(\@actual,\@correct),"$label object $i: query") or return 0;
+    }
     report_fail(as_bool($actual->view)==$view,"$label object $i: view") or return 0;
     report_fail(as_bool($actual->implicit)==$implicit,"$label object $i: implicit") or return 0;
     if ($mature) {
