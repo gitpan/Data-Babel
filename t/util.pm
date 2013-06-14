@@ -6,15 +6,16 @@ use File::Basename qw(fileparse);
 use File::Spec;
 use Cwd qw(cwd);
 use Test::More;
-use Test::Deep qw(cmp_details deep_diag methods);
+use Test::Deep qw(cmp_details deep_diag methods set);
 use Exporter();
 use strict;
 
 our @ISA=qw(Exporter);
 our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode subtestdir rootpath
 	       as_bool as_list flatten
-	       is_quietly is_loudly cmp_quietly cmp_attrs report report_pass report_fail 
-	       called_from
+	       is_quietly is_loudly cmp_quietly cmp_set_quietly cmp_attrs 
+	       report report_pass report_fail 
+	       called_from group
 	     );
 our($SCRIPT,$SCRIPTPATH,$SCRIPTBASENAME,$SCRIPTCODE,$ROOTPATH);
 sub script {$SCRIPT or (($SCRIPT,$SCRIPTPATH)=fileparse($0) and $SCRIPT);}
@@ -50,6 +51,11 @@ sub cmp_quietly {
   report_fail(defined $actual,"$label: defined",$file,$line) or return 0;
   my($ok,$details)=cmp_details($actual,$correct);
   report_fail($ok,"$label",$file,$line,$details);
+}
+# like cmp_set but reports errors the way we want
+sub cmp_set_quietly {
+  my($actual,$correct,$label,$file,$line)=@_;
+  cmp_quietly($actual,set(@$correct),$label,$file,$line);
 }
 # $actual is object. $correct is HASH of attr=>value pairs wih Test::Deep decorations
 sub cmp_attrs {
@@ -106,18 +112,18 @@ sub called_from {
 ################################################################################
 
 # # TODO: rewrite w/ Hash::AutoHash::MultiValued
-# # group a list by categories returned by sub.
-# # has to be declared before use, because of prototype
-# sub group (&@) {
-#   my($sub,@list)=@_;
-#   my %groups;
-#   for (@list) {
-#     my $group=&$sub($_);
-#     my $members=$groups{$group} || ($groups{$group}=[]);
-#     push(@$members,$_);
-#   }
-#   wantarray? %groups: \%groups;
-# }
+# group a list by categories returned by sub.
+# has to be declared before use, because of prototype
+sub group (&@) {
+  my($sub,@list)=@_;
+  my %groups;
+  for (@list) {
+    my $group=&$sub($_);
+    my $members=$groups{$group} || ($groups{$group}=[]);
+    push(@$members,$_);
+  }
+  wantarray? %groups: \%groups;
+}
 # # like group, but processes elements that are put on list. 
 # # sub should return 2 element list: 1st defines group, 2nd maps the value
 # # has to be declared before use, because of prototype

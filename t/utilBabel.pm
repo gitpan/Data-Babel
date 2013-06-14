@@ -2,7 +2,7 @@ package t::utilBabel;
 use t::util;
 use Carp;
 use Test::More;
-use Test::Deep qw(cmp_details cmp_set deep_diag subbagof);
+use Test::Deep qw(cmp_details deep_diag subbagof);
 use List::Util qw(min);
 use List::MoreUtils qw(uniq);
 use Hash::AutoHash::Args;
@@ -686,7 +686,8 @@ QUERY
     report_fail($actual->id eq $id,"$label object $i: id") or return 0;
     # NG 13-06-12: compare as sets 'cuz perl 5.18 no longer preserves order
     # report_fail(scrunched_eq($actual->inputs,$inputs),"$label object $i: inputs") or return 0;
-    report_fail(cmp_set(as_list($actual->inputs),as_list($inputs)),"$label object $i: inputs")
+    report_fail(cmp_set_quietly(as_list($actual->inputs),as_list($inputs)),
+		"$label object $i: inputs")
       or return 0;
     report_fail(scrunched_eq($actual->namespace,$namespace),"$label object $i: namespace") 
       or return 0;
@@ -698,7 +699,7 @@ QUERY
       my @actual=split(/\s+UNION\s+/,$actual->query);
       $query=~s/^\s+|\s+$//mg;
       my @correct=split(/\s+UNION\s+/,$query);
-      report_fail(cmp_set(\@actual,\@correct),"$label object $i: query") or return 0;
+      report_fail(cmp_set_quietly(\@actual,\@correct),"$label object $i: query") or return 0;
     }
     report_fail(as_bool($actual->view)==$view,"$label object $i: view") or return 0;
     report_fail(as_bool($actual->implicit)==$implicit,"$label object $i: implicit") or return 0;
@@ -735,7 +736,8 @@ QUERY
     report_fail($actual->id eq $id,"$label object $i: id") or return 0;
     # NG 13-06-12: compare as sets 'cuz perl 5.18 no longer preserves order
     # report_fail(scrunched_eq($actual->inputs,$inputs),"$label object $i: inputs") or return 0;
-    report_fail(cmp_set(as_list($actual->inputs),as_list($inputs)),"$label object $i: inputs")
+    report_fail(cmp_set_quietly(as_list($actual->inputs),as_list($inputs)),
+		"$label object $i: inputs")
       or return 0;
     report_fail(scrunched_eq($actual->namespace,"ConnectDots"),"$label object $i: namespace") 
       or return 0;
