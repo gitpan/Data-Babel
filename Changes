@@ -1,13 +1,29 @@
 Revision history for Data-Babel
 
+1.11_05 2013-06-15
+	RC2 for 1.11
+	Bug fixes (tests)
+	- select_ur was setting status field to undef (should be 0) when invalid
+	  input id was not lower case. bug introduced by support for case
+	  insensitive comparisons in 1.11_01
+	Improved tests
+	- added 036.validate_case to test case insensitive validate
+	- added tests for case insensitive non-matching ids in 112.validate_case
+
+1.11_04 2013-06-14
+	RC1 for 1.11
+	Bug fixes (tests)
+	- replaced calls to cmp_set with cmp_set_quietly to avoid superfluous
+	  test output. error introduced in 1.11_03
+
 1.11_03 2013-06-13
-	Bug fixes
-	- Fixed more tests that failed because of hash key randomization in 5.18.
+	Bug fixes (tests)
+	- fixed more tests that failed because of hash key randomization in 5.18.
 	  thanks again to CPAN testers for finding this problem!
 
 1.11_02 2013-06-12
-	Bug fixes
-	- Fixed tests that failed because of hash key randomization in 5.18.
+	Bug fixes (tests)
+	- fixed tests that failed because of hash key randomization in 5.18.
 	  thanks to CPAN testers for finding this problem!
 
 1.11_01 2013-06-11
@@ -49,7 +65,7 @@ Revision history for Data-Babel
 	RC2 for 1.10
 	New features
 	- expanded 'validate' method to accept output_idtypes
-	Bug fixes
+	Bug fixes (tests & build)
 	- updated dependencies. should have been done earlier. Class::AutoDB was 
 	  1.20 which predates bug fix for redispatch of UNIVERSAL methods on Oid
 	  to real object. this caused FAILs in 040 and 050 series, which are the
@@ -61,7 +77,7 @@ Revision history for Data-Babel
 	New features
 	- 'validate' method
         - 'validate' option for 'translate' and 'count'
-	Bug fixes
+	Bug fixes (tests)
 	- lingering bug in 098.example. test was calling example script with
 	  wrong Perl interpreter and without -Mblib. thanks to CPAN smoke 
 	  testers for finding this bug!!
@@ -69,7 +85,7 @@ Revision history for Data-Babel
 1.10_05 2012-11-22
 	New features
 	- 'translate' and 'count' handle histories
-	Further refactored 04x series in preparation for histories and 'validate'
+	Further refactored 04x tests in preparation for histories and 'validate'
 	- 04x subtests can do filter
 	- 042.filter removed from distribution
 
@@ -103,6 +119,7 @@ Revision history for Data-Babel
 	Bug fixes
 	- 'translate' with empty input_ids. was generating illegal SQL, now
 	  returns empty table
+	Bug fixes (tests)
 	- examples/babel.pl used deprecated qw(...) as parentheses.  should have
 	  been fixed in 1.02.  sorry
 ----------

@@ -66,6 +66,15 @@ my $actual=select_ur(babel=>$babel,
 cmp_table_nocase($actual,$correct,'translate - select_ur');
 my $actual=$babel->translate(input_idtype=>'abc',input_ids=>[qw(abc)],output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,'translate');
+# + non-matching input id
+my $correct=prep_tabledata('abc xyz');
+my $actual=select_ur(babel=>$babel,
+		     input_idtype=>'abc',input_ids=>[qw(abc INVALID)],
+		     output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,'translate + INVALID - select_ur');
+my $actual=$babel->translate(input_idtype=>'abc',input_ids=>[qw(abc INVALID)],
+			     output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,'translate + INVALID');
 
 # validate matching input id, matching case: select_ur & real
 my $correct=prep_tabledata('abc 1 xyz');
@@ -74,44 +83,99 @@ my $actual=select_ur(babel=>$babel,validate=>1,
 cmp_table_nocase($actual,$correct,'validate id & case match - select_ur');
 my $actual=$babel->validate(input_idtype=>'abc',input_ids=>[qw(abc)],output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,'validate id & case match');
+# + non-matching input id
+my $correct=prep_tabledata('abc 1 xyz','INVALID 0 NULL');
+my $actual=
+  select_ur(babel=>$babel,validate=>1,input_idtype=>'abc',input_ids=>[qw(abc INVALID)],
+	    output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,'validate id & case match + INVALID - select_ur');
+my $actual=
+  $babel->validate(input_idtype=>'abc',input_ids=>[qw(abc INVALID)],output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,'validate id & case match + INVALID');
 
 # validate matching input id, non-matching case: select_ur & real
 my $correct=prep_tabledata('abc 1 xyz');
-my $actual=select_ur(babel=>$babel,validate=>1,
-		     input_idtype=>'abc',input_ids=>[qw(abC)],output_idtypes=>[qw(xyz)]);
+my $actual=
+  select_ur(babel=>$babel,validate=>1,
+	    input_idtype=>'abc',input_ids=>[qw(abC)],output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,'validate id match but case different - select_ur');
 my $actual=$babel->validate(input_idtype=>'abc',input_ids=>[qw(abC)],output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,'validate id match but case different');
+# + non-matching input id
+my $correct=prep_tabledata('abc 1 xyz','INVALID 0 NULL');
+my $actual=
+  select_ur(babel=>$babel,validate=>1,
+	    input_idtype=>'abc',input_ids=>[qw(abC INVALID)],output_idtypes=>[qw(xyz)]);
+cmp_table_nocase
+  ($actual,$correct,'validate id match but case different + INVALID- select_ur');
+my $actual=
+  $babel->validate(input_idtype=>'abc',input_ids=>[qw(abC INVALID)],output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,'validate id match but case different + INVALID');
 
 # translate two matching input ids, different cases: select_ur & real
 my $correct=prep_tabledata('abc xyz');
-my $actual=select_ur(babel=>$babel,
-		     input_idtype=>'abc',input_ids=>[qw(abc),qw(abC)],output_idtypes=>[qw(xyz)]);
+my $actual=
+  select_ur(babel=>$babel,input_idtype=>'abc',input_ids=>[qw(abc abC)],output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,
 	  'translate two matching input ids, different cases - select_ur');
 my $actual=
-  $babel->translate(input_idtype=>'abc',input_ids=>[qw(abc),qw(abC)],output_idtypes=>[qw(xyz)]);
+  $babel->translate(input_idtype=>'abc',input_ids=>[qw(abc abC)],output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,'translate two matching input ids, different cases');
+# + non-matching input id
+my $actual=
+  select_ur(babel=>$babel,input_idtype=>'abc',input_ids=>[qw(abc abC INVALID)],
+	    output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,
+	  'translate two matching input ids, different cases + INVALID - select_ur');
+my $actual=
+  $babel->translate(input_idtype=>'abc',input_ids=>[qw(abc abC INVALID)],
+		    output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,
+		 'translate two matching input ids, different cases + INVALID');
 
 # validate two matching input ids, different cases: select_ur & real
 my $correct=prep_tabledata('abc 1 xyz');
 my $actual=select_ur(babel=>$babel,validate=>1,
-		     input_idtype=>'abc',input_ids=>[qw(abc),qw(abC)],output_idtypes=>[qw(xyz)]);
+		     input_idtype=>'abc',input_ids=>[qw(abc abC)],output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,'validate two matching input ids, different cases - select_ur');
 my $actual=
-  $babel->validate(input_idtype=>'abc',input_ids=>[qw(abc),qw(abC)],output_idtypes=>[qw(xyz)]);
+  $babel->validate(input_idtype=>'abc',input_ids=>[qw(abc abC)],output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,'validate two matching input ids, different cases');
+# + non-matching input id
+my $correct=prep_tabledata('abc 1 xyz','INVALID 0 NULL');
+my $actual=
+  select_ur(babel=>$babel,validate=>1,
+	    input_idtype=>'abc',input_ids=>[qw(abc abC INVALID)],output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,
+		 'validate two matching input ids, different cases + INVALID - select_ur');
+my $actual=
+  $babel->validate(input_idtype=>'abc',input_ids=>[qw(abc abC INVALID)],
+		   output_idtypes=>[qw(xyz)]);
+cmp_table_nocase($actual,$correct,'validate two matching input ids, different cases + INVALID');
 
 # validate two matching input ids, different cases w/ filter: select_ur & real
 my $correct=prep_tabledata('abc 1 xyz');
 my $actual=select_ur(babel=>$babel,validate=>1,
-		     input_idtype=>'abc',input_ids=>[qw(abc),qw(abC)],filters=>{xyz=>'xyz'},
+		     input_idtype=>'abc',input_ids=>[qw(abc abC)],filters=>{xyz=>'xyz'},
 		     output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,
 		 'validate two matching input ids, different cases w/ filter - select_ur');
 my $actual=
-  $babel->validate(input_idtype=>'abc',input_ids=>[qw(abc),qw(abC)],filters=>{xyz=>'xyz'},
+  $babel->validate(input_idtype=>'abc',input_ids=>[qw(abc abC)],filters=>{xyz=>'xyz'},
 		   output_idtypes=>[qw(xyz)]);
 cmp_table_nocase($actual,$correct,'validate two matching input ids, different cases w/ filter');
+# + non-matching input id
+my $correct=prep_tabledata('abc 1 xyz','INVALID 0 NULL');
+my $actual=select_ur(babel=>$babel,validate=>1,
+		     input_idtype=>'abc',input_ids=>[qw(abc abC INVALID)],filters=>{xyz=>'xyz'},
+		     output_idtypes=>[qw(xyz)]);
+cmp_table_nocase
+  ($actual,$correct,
+   'validate two matching input ids, different cases w/ filter + INVALID - select_ur');
+my $actual=
+  $babel->validate(input_idtype=>'abc',input_ids=>[qw(abc abC INVALID)],filters=>{xyz=>'xyz'},
+		   output_idtypes=>[qw(xyz)]);
+cmp_table_nocase
+  ($actual,$correct,'validate two matching input ids, different cases w/ filter + INVALID');
 
 done_testing();

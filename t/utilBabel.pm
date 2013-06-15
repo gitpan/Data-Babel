@@ -13,7 +13,7 @@ our @ISA=qw(Exporter);
 
 our @EXPORT=
   (@t::util::EXPORT,
-   qw(check_object_basics sort_objects
+   qw(check_object_basics sort_objects vary_case
       prep_tabledata load_maptable load_master load_ur 
       select_ur filter_ur count_ur select_ur_sanity 
       check_table check_database_sanity check_maptables_sanity check_masters_sanity 
@@ -57,6 +57,24 @@ sub sort_objects {
   my @sorted_objects=sort {$a->name cmp $b->name} @$objects;
   wantarray? @sorted_objects: \@sorted_objects;
 }
+# NG 13-06-15: added vary_case to test case insensitve comparisons
+# vary case for list of ids
+sub vary_case {
+  my $wantarray=@_==0||@_>1||!ref($_[0]);
+  my @in=flatten(@_);
+  my @out;
+  my $case=0;
+  while(my $id=shift @in) {
+    if ($case==0) {push(@out,lc($id))}
+    elsif ($case==1) {push(@out,uc($id))}
+    elsif ($case==2) {push(@out,ucfirst($id))}
+    else {push(@out,ucsecond($id))}
+    $case=(++$case%4);
+  }
+  $wantarray? @out: \@out;
+}
+sub ucsecond {substr($_[0],0,1).ucfirst(substr($_[0],1))}
+
 # scrunch whitespace
 sub scrunch {
   my($x)=@_;
@@ -273,7 +291,8 @@ sub select_ur {
     # existing rows are valid - splice in 'valid' column
     map {splice(@$_,1,0,1)} @$table;
     # add rows for missings ids - some valid, some not
-    push(@$table,map {[$_,$id2valid{$_},(undef)x@$output_idtypes]} @missing_ids);
+    # NG 13-06-15: added '||0' for case insensitive comparisons
+    push(@$table,map {[$_,$id2valid{$_}||0,(undef)x@$output_idtypes]} @missing_ids);
   }
   $table;
 }

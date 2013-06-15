@@ -35,6 +35,7 @@ t/babel.020.persist/persist.030.reread.t
 t/babel.030.history.t
 t/babel.032.validate_option.t
 t/babel.034.validate.t
+t/babel.036.validate_case.t
 t/babel.040.translate_hand.t
 t/babel.040.translate_hand/translate_hand.000.setup.t
 t/babel.040.translate_hand/translate_hand.001.sanity.t
