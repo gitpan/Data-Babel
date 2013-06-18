@@ -1,5 +1,16 @@
 Revision history for Data-Babel
 
+1.11	2013-06-18 - external changes since 1.10
+	New features
+	- can specify history in IdType, rather than just in Master
+	- new 'show_schema_graph' method
+	Bug fixes
+	- in 'validate', check for unmatched ids has to be case insensitive 
+	  because MySQL does case intensive comparisons, e.g., searching for 
+	  'htt' as gene_symbol
+    	- detect isolated IdTypes, ie, IdTypes not contained in any MapTable.
+          previously, load_implicit_masters would generate illegal empty query
+
 1.11_05 2013-06-15
 	RC2 for 1.11
 	Bug fixes (tests)
@@ -38,7 +49,7 @@ Revision history for Data-Babel
 	- new 'show_schema_graph' method
 	Deleted vestigal logging code, mostly from Data::Babel::Base
 ----------
-1.10	2012-12-02 - external changes since 1.03
+1.10	2012-12-02
 	New features
 	* new 'translate' options
 	  - filters
@@ -60,68 +71,7 @@ Revision history for Data-Babel
 	- lingering bug in 098.example. test was calling example script with
 	  wrong Perl interpreter and without -Mblib. thanks to CPAN smoke 
 	  testers for finding this bug!!
-----------
-1.10_07 2012-11-30
-	RC2 for 1.10
-	New features
-	- expanded 'validate' method to accept output_idtypes
-	Bug fixes (tests & build)
-	- updated dependencies. should have been done earlier. Class::AutoDB was 
-	  1.20 which predates bug fix for redispatch of UNIVERSAL methods on Oid
-	  to real object. this caused FAILs in 040 and 050 series, which are the
-	  only tests that setup Babel in one script, then do extensive tests in
 	  other scripts. thanks to CPAN testers for finding this problem!
-
-1.10_06 2012-11-25
-	RC1 for 1.10
-	New features
-	- 'validate' method
-        - 'validate' option for 'translate' and 'count'
-	Bug fixes (tests)
-	- lingering bug in 098.example. test was calling example script with
-	  wrong Perl interpreter and without -Mblib. thanks to CPAN smoke 
-	  testers for finding this bug!!
-
-1.10_05 2012-11-22
-	New features
-	- 'translate' and 'count' handle histories
-	Further refactored 04x tests in preparation for histories and 'validate'
-	- 04x subtests can do filter
-	- 042.filter removed from distribution
-
-1.10_04 2012-11-18
-	Only changes are to tests
-	Refactored 04x series in preparation for histories and 'validate'
-	- 04x subtests can test 'translate' or 'count'
-	- 044.count removed from distribution
-	Refactored 05x series in preparation for histories and 'validate'
-	- 000 subtest creates all graph types and db types
-	- other subtests test specific features against db created by 000
-	- subtests can test 'translate' or 'count' w/ and w/o filters
-	- 06x series merged into 05x as 'basecalc' db type and removed from 
-	  distribution
-
-1.10_03 2012-09-30
-	New features
-	- internal id types
-	- 'load_implicit_masters' method
-
-1.10_02 2012-09-26
-	New features
-        - Improved semantics for undefs in filters
-	- 'count' method
-	Bug fixes
-	- 'translate' with empty input_ids would sometimes return NULL id
-
-1.10_01 2012-08-25
-	New features
-	- filters - new arg to 'translate'
-	Bug fixes
-	- 'translate' with empty input_ids. was generating illegal SQL, now
-	  returns empty table
-	Bug fixes (tests)
-	- examples/babel.pl used deprecated qw(...) as parentheses.  should have
-	  been fixed in 1.02.  sorry
 ----------
 1.03    2012-08-21
 	Added test for version number in POD
