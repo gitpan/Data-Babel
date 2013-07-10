@@ -11,19 +11,21 @@ use Exporter();
 use strict;
 
 our @ISA=qw(Exporter);
-our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode subtestdir rootpath
+our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode scripthead 
+	       subtestdir rootpath
 	       as_bool as_list flatten
 	       is_quietly is_loudly cmp_quietly cmp_set_quietly cmp_attrs 
 	       report report_pass report_fail 
-	       called_from group
+	       called_from group val2idx
 	     );
-our($SCRIPT,$SCRIPTPATH,$SCRIPTBASENAME,$SCRIPTCODE,$ROOTPATH);
+our($SCRIPT,$SCRIPTPATH,$SCRIPTBASENAME,$SCRIPTCODE,$SCRIPTHEAD,$ROOTPATH);
 sub script {$SCRIPT or (($SCRIPT,$SCRIPTPATH)=fileparse($0) and $SCRIPT);}
 sub scriptpath {$SCRIPTPATH or (($SCRIPT,$SCRIPTPATH)=fileparse($0) and $SCRIPTPATH);}
 sub scriptfullpath {$FindBin::Bin}
 sub scriptbasename {$SCRIPTBASENAME or 
 		      (($SCRIPTBASENAME)=fileparse($0,qw(.t)) and $SCRIPTBASENAME);}
 sub scriptcode {$SCRIPTCODE or (($SCRIPTCODE)=script=~/\.(\w+)\.t$/)[0];}
+sub scripthead {$SCRIPTHEAD or (($SCRIPTHEAD)=script=~/^(.*?)\.\d+/);}
 sub subtestdir {File::Spec->catdir(scriptpath,scriptbasename)}
 sub rootpath {$ROOTPATH or $ROOTPATH=cwd}
 
@@ -124,6 +126,13 @@ sub group (&@) {
   }
   wantarray? %groups: \%groups;
 }
+# produce hash mapping each element of list to its position. doesn't worry about duplicates
+sub val2idx {
+  my $i=0;
+  my %val2idx=map {$_=>$i++} @_;
+  wantarray? %val2idx: \%val2idx;
+}
+
 # # like group, but processes elements that are put on list. 
 # # sub should return 2 element list: 1st defines group, 2nd maps the value
 # # has to be declared before use, because of prototype

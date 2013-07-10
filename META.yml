@@ -43,7 +43,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.11
+    version: 1.12_01
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -68,6 +68,9 @@ provides:
   Data::Babel::Master:
     file: lib/Data/Babel/Master.pm
     version: 0
+  Data::Babel::PrefixMatcher:
+    file: lib/Data/Babel/PrefixMatcher.pm
+    version: 0
 requires:
   Carp: 0
   Class::AutoClass: 1.55
@@ -86,4 +89,4 @@ requires:
   Tie::ToObject: 0.03
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.11
+version: 1.12_01

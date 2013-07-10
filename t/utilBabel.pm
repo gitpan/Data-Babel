@@ -3,7 +3,7 @@ use t::util;
 use Carp;
 use Test::More;
 use Test::Deep qw(cmp_details deep_diag subbagof);
-use List::Util qw(min);
+use List::Util qw(first min);
 use List::MoreUtils qw(uniq);
 use Hash::AutoHash::Args;
 # use Hash::AutoHash::MultiValued;
@@ -13,8 +13,8 @@ our @ISA=qw(Exporter);
 
 our @EXPORT=
   (@t::util::EXPORT,
-   qw(check_object_basics sort_objects vary_case
-      prep_tabledata load_maptable load_master load_ur 
+   qw(check_object_basics sort_objects sort_name_lists power_subsets vary_case
+      prep_tabledata load_maptable load_master load_ur order_tables uniq_rows grep_rows
       select_ur filter_ur count_ur select_ur_sanity 
       check_table check_database_sanity check_maptables_sanity check_masters_sanity 
       cleanup_db cleanup_ur
@@ -24,6 +24,7 @@ our @EXPORT=
       check_handcrafted_name2idtype check_handcrafted_name2master check_handcrafted_name2maptable
       check_handcrafted_id2object check_handcrafted_id2name check_implicit_masters
       load_handcrafted_maptables load_handcrafted_masters
+      pnames pgraph
     ));
 
 sub check_object_basics {
@@ -57,6 +58,49 @@ sub sort_objects {
   my @sorted_objects=sort {$a->name cmp $b->name} @$objects;
   wantarray? @sorted_objects: \@sorted_objects;
 }
+# NG 13-06-19: sort arrays of names, typically output subsets produced by power_set
+sub sort_name_lists {
+  sort {@$a<=>@$b || first {$_} map {$a->[$_] cmp $b->[$_]} 0..$#$a} @_;
+}
+
+# NG 13-07-07: generate subsets of power set. much faster than Set::Scalar
+#             for large sets if number of subsets not too big
+# 1st argument is either ARRAY ref or integer
+#   if integer, it's universe size; universe is 0..$size-1
+#   if ARRAY, it's universe
+# min, max are sizes of subsets emitted
+# if only one provided, it's max
+# if none provided, it's regular power_set. equivalent to min=0, max=size
+sub power_subsets {
+  my($size,$universe);
+  if (ref($_[0])) {
+    $universe=shift;
+    $size=scalar @$universe;
+  } else {
+    $size=shift;
+  }
+  my($min,$max)=@_==1? (0,@_): (@_>1? @_: (0,$size));
+  my @subsets=(defined $max && $max==0)? []: _power_subsets(0,$size,$min,$max);
+  @subsets=map {[@$universe[@{$_}]]} @subsets if defined $universe;
+  wantarray? @subsets: \@subsets;
+}
+sub _power_subsets {
+  my($i,$size,$min,$max)=@_;
+  return ([],[$i]) if $i==$size-1;
+  my @recurse=_power_subsets($i+1,$size,$min,$max);
+  # cases: size refers to size of downstream subset
+  # 1) size==max. implies size>=min. pass along, don't add current
+  # 2) size<max && size+i>=min.      pass along, and add current
+  # 3) size<max && size+1+i>=min.    add current
+  # 4) else.  do nothing
+  my @out=map {
+    scalar(@$_)==$max? $_ :
+      (scalar(@$_)+$i>=$min? ($_,[$i,@$_]): 
+       (scalar(@$_)+1+$i>=$min? [$i,@$_]: ()))} @recurse;
+
+  @out;
+}
+
 # NG 13-06-15: added vary_case to test case insensitve comparisons
 # vary case for list of ids
 sub vary_case {
@@ -188,15 +232,24 @@ sub load_master {
 # create universal relation (UR)
 # algorithm: natual full outer join of all maptables and explicit masters
 #            any pre-order traversal of schema graph will work (I think!)
-# >>> assume that lexical order of maptables gives a valid pre-order <<<
 # sadly, since MyQSL still lacks full outer joins, have to emulate with left/right
 # joins plus union. do it step-by-step: I couldn't figure out how to do it in
 # one SQL statement...
+# >>> assume that lexical order of maptables gives a valid pre-order <<<
+# NG 13-06-12: assumption above is certainly worng in some tests and probably wrong 
+#              in many others.  scary this wasn't cught sooner.
+#              as a first step towards a solution, add @tables arg to let caller
+#              pass in a valid join order
 sub load_ur {
-  my($babel,$urname)=@_;
+  my($babel,$urname,@tables)=@_;
   $urname or $urname='ur';
-  # ASSUME that lexical order of maptables gives a valid pre-order
-  my @tables=sort {$a->tablename cmp $b->tablename} @{$babel->maptables};
+  # if @tables not given, ASSUME lexical order of maptables is valid pre-order
+  # this will change soon
+  if (@tables) {
+    @tables=map {$babel->name2maptable($_)} @tables;
+  } else {
+    @tables=sort {$a->tablename cmp $b->tablename} @{$babel->maptables};
+  }
   # add in explicit Masters. order doesn't matter so long as they're last
   push(@tables,grep {$_->explicit} @{$babel->masters});
   # %column2type maps column_names to sql types
@@ -294,7 +347,62 @@ sub select_ur {
     # NG 13-06-15: added '||0' for case insensitive comparisons
     push(@$table,map {[$_,$id2valid{$_}||0,(undef)x@$output_idtypes]} @missing_ids);
   }
+
+  ########################################
+  # # NG 13-06-11: emit pseudo-dups diagnostics as prelude to creating tests
+  # #              more diagnostics below for same reason
+  # my %groups=group {$_->[0]} @$table;
+  #  my $pseudo_dups=0;
+
+  # for my $group (values %groups) {
+  #   my @rows=sort {undefs($a)<=>undefs($b)} @$group;
+  #   my %rows=map {$_=>$rows[$_]} (0..$#rows);
+  #   for(my $i=0; $i<@rows-1; $i++) {
+  #     next unless $rows{$i};
+  #     for(my $j=$i+1; $j<@rows; $j++) {
+  # 	next unless $rows{$j};
+  # 	delete $rows{$j}, $pseudo_dups++ if pseudo_dup($rows[$i],$rows[$j]);
+  #     }
+  #   }
+  # }
+  # diag('+++ select_ur pseudo_dups='.$pseudo_dups);
+  ########################################
+  # $table;
+
+  remove_pdups($table);
+}
+sub remove_pdups {
+  my $table=shift;
+  my %groups=group {$_->[0]} @$table;
+  my $pseudo_dups=0;
+  $table=[];
+  for my $group (values %groups) {
+    push(@$table,@$group),next unless scalar(@$group)>1;
+    my @rows=sort {undefs($a)<=>undefs($b)} @$group;
+    my %rows=map {$_=>$rows[$_]} (0..$#rows);
+    my %pseudo_dups;
+    for(my $i=0; $i<@rows-1; $i++) {
+      next unless $rows{$i};
+      for(my $j=$i+1; $j<@rows; $j++) {
+	next unless $rows{$j};
+	delete $rows{$j}, $pseudo_dups++ if pseudo_dup($rows[$i],$rows[$j]);
+      }
+    }
+    push(@$table,values %rows);
+  }
+  # TODO: put this under some sort of flag...
+  # diag('+++ select_ur pseudo_dups='.$pseudo_dups) if $pseudo_dups;
   $table;
+}
+# used to sort by number of undefs
+sub undefs {scalar grep {!defined $_} @{$_[0]};}
+# row $j is pseudo-dup of $i if they agree wherever both defined, else $j is undef
+sub pseudo_dup {
+  my($rowi,$rowj)=@_;
+  for(my $k=0; $k<=@$rowi; $k++) {
+    return 0 if defined $rowj->[$k] && $rowi->[$k] ne $rowj->[$k];
+  }
+  1;
 }
 
 # NG 13-06-10: changed to do case insensitive comparisons
@@ -335,6 +443,13 @@ sub uniq_rows {
     push(@$uniq_rows,$rows->[$i]) unless $seen{$row_string}++;
   }
   $uniq_rows;
+}
+# NG 13-06-21: moved from 050/translate.pm and renamed from grep_table
+sub grep_rows {
+  my($table,$col,$ids)=@_;
+  my $pattern=join('|',map {"\^$_\$"} @$ids);
+  $pattern=qr/$pattern/;
+  [grep {$_->[$col]=~/$pattern/} @$table];
 }
 # process filters ARRAY - a bit hacky 'cuz filter=>undef not same as filter=>[undef]
 sub filters_array {
@@ -566,6 +681,32 @@ sub cmp_rows {
   }
   # equal up to here. if $b has more, then $a is smaller
   $#$a <=> $#$b;
+}
+# NG 13-06-12: construct pre-order traversal of schema 'table-graph';
+sub order_tables {
+  my($babel)=@_;
+  my $graph=new Graph::Undirected;
+  my @tables=@{$babel->maptables};
+  for my $table (@tables) {
+    my @idtypes=@{$table->idtypes};
+    my @neighbors=grep {$_!=$table} map {@{$_->maptables}} @idtypes;
+    my $me=$table->name;
+    map {$graph->add_edge($me,$_->name)} @neighbors;
+  }
+  my $tree=$graph->minimum_spanning_tree;
+  # now do a pre-order traversal, eg, depth-first
+  my @nodes=$tree->vertices;
+  my %avbl=map {$_=>1} @nodes;
+  my @future=$nodes[0];
+  my @traversal;
+  while (@future) {
+    my $node=shift @future;
+    next unless $avbl{$node};	# don't process if already visited
+    push(@traversal,$node);
+    $avbl{$node}=0;		# mark as visited
+    push(@future,grep {$avbl{$_}} $tree->neighbors($node));
+  }
+  wantarray? @traversal: \@traversal;
 }
 # emulate natural full outer join. return result table
 # $result is optional name of result table. if not set, unique name generated
@@ -880,6 +1021,32 @@ sub _has_history {
 #   ref $idtype and $idtype=$idtype->name;
 #   "_X_$idtype";
 # }
+
+# debugging functions
+
+# print names 
+sub pnames {
+  my $sep=shift;
+  print join($sep,map {$_->name} @_);
+}
+# print graph, typically as sif
+sub pgraph {
+  my($graph,$file,$format)=@_;
+  length($format)? $format=lc($format): ($format='sif');
+  confess "Invalid format $format: must be sif or txt" unless $format=~/sif|txt/;
+  if ($file) {
+    open(OUT,'>',$file) || confess "Cannot create output file $file: $!";
+  } else {
+    *OUT=*STDOUT;
+  }
+  if ($format eq 'sif') {
+    print OUT join("\n",map {my($v0,$v1)=@$_;"$v0 - $v1"} $graph->edges),"\n";
+  } else {
+    print OUT '  ',join("\n  ",map {_edge_str($graph,$_)} _sort_edges($graph->edges)),"\n";
+  }
+  close OUT if $file;
+}
+
 1;
 
 package t::FullOuterJoinTable;

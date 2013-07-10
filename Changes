@@ -1,6 +1,13 @@
 Revision history for Data-Babel
 
-1.11	2013-06-18 - external changes since 1.10
+1.12_01	 2013-06-DD
+	Bug fixes
+	- Fixed pseudo-duplicates bug in which translate returned rows
+	  that were identical on all non-null columns, differing only
+	  in that one row had nulls where the other had a real value
+	- This release has initial implementation using prefix hash
+----------
+1.11    2013-06-18
 	New features
 	- can specify history in IdType, rather than just in Master
 	- new 'show_schema_graph' method
@@ -10,44 +17,6 @@ Revision history for Data-Babel
 	  'htt' as gene_symbol
     	- detect isolated IdTypes, ie, IdTypes not contained in any MapTable.
           previously, load_implicit_masters would generate illegal empty query
-
-1.11_05 2013-06-15
-	RC2 for 1.11
-	Bug fixes (tests)
-	- select_ur was setting status field to undef (should be 0) when invalid
-	  input id was not lower case. bug introduced by support for case
-	  insensitive comparisons in 1.11_01
-	Improved tests
-	- added 036.validate_case to test case insensitive validate
-	- added tests for case insensitive non-matching ids in 112.validate_case
-
-1.11_04 2013-06-14
-	RC1 for 1.11
-	Bug fixes (tests)
-	- replaced calls to cmp_set with cmp_set_quietly to avoid superfluous
-	  test output. error introduced in 1.11_03
-
-1.11_03 2013-06-13
-	Bug fixes (tests)
-	- fixed more tests that failed because of hash key randomization in 5.18.
-	  thanks again to CPAN testers for finding this problem!
-
-1.11_02 2013-06-12
-	Bug fixes (tests)
-	- fixed tests that failed because of hash key randomization in 5.18.
-	  thanks to CPAN testers for finding this problem!
-
-1.11_01 2013-06-11
-	Bug fixes
-	- in 'validate', check for unmatched ids has to be case insensitive 
-	  because MySQL does case intensive comparisons, e.g., searching for 
-	  'htt' as gene_symbol
-    	- detect isolated IdTypes, ie, IdTypes not contained in any MapTable.
-          previously, load_implicit_masters would generate illegal empty query
-	New features
-	- can specify history in IdType, rather than just in Master
-	- new 'show_schema_graph' method
-	Deleted vestigal logging code, mostly from Data::Babel::Base
 ----------
 1.10	2012-12-02
 	New features
@@ -71,7 +40,6 @@ Revision history for Data-Babel
 	- lingering bug in 098.example. test was calling example script with
 	  wrong Perl interpreter and without -Mblib. thanks to CPAN smoke 
 	  testers for finding this bug!!
-	  other scripts. thanks to CPAN testers for finding this problem!
 ----------
 1.03    2012-08-21
 	Added test for version number in POD

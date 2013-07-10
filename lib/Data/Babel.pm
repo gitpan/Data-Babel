@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.11';
+our $VERSION='1.12_01';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -20,6 +20,7 @@ use strict;
 use Class::AutoClass;
 use Carp;
 use Graph::Undirected;
+use Graph::Directed;
 use List::MoreUtils qw(uniq);
 use List::Util qw(min);
 use Hash::AutoHash::Args;
@@ -28,6 +29,7 @@ use Data::Babel::Config;
 use Data::Babel::IdType;
 use Data::Babel::Master;
 use Data::Babel::MapTable;
+use Data::Babel::PrefixMatcher;
 use Data::Babel::HAH_MultiValued;
 
 use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES %SYNONYMS %DEFAULTS %AUTODB);
@@ -131,18 +133,26 @@ sub translate {
   # NG 12-08-22: okay to omit input_ids; same as input_ids_all=>1
   # confess "At least one of input_ids or input_ids_all must be set" if $ids_args==0;
   confess "At most one of input_ids or input_ids_all may be set" if $ids_args>1;
-  my $sql=$self->generate_query($args);
+  
+  # NG 13-06-19: added $query_paths,$input,@outputs. needed for pdup elimination
+  # NG 13-06-21: replace $input_name,@output_names by $columns - SQL column names
+  #              of results table
+  my($sql,$query_paths,$columns)=$self->generate_query($args);
   my $dbh=$args->dbh || $self->autodb->dbh;
   # my $results=$args->count? $dbh->selectrow_array($sql): $dbh->selectall_arrayref($sql);
   # NG 13-06-11: added this code to display query
-  if ($self->verbose) {
-    print "$sql\n";
-  }
+  print "$sql\n" if $self->verbose;
   my $results=$dbh->selectall_arrayref($sql);
   confess "Database query failed:\n$sql\n".$dbh->errstr if $dbh->err;
-  unless ($args->validate) {
-    $results=@$results? $results->[0][0]: 0 if $args->count;
-  } else { 
+  $results=$self->remove_pdups($results,$query_paths,$columns) unless $args->keep_pdups;
+
+  # NG 12-11-23: if validating, have to do count in code...
+  # NG 13-06-20: with pdup removal, have to do count in code always. 
+  #              kinda makes count pointless....
+  if ($args->count && $args->keep_pdups && !$args->validate) {
+    return @$results? $results->[0][0]: 0;
+  }
+  if ($args->validate) { 
     # cases:
     # 1) no filters. $results contains all valid input_ids. missing ids are invalid
     # 2) filters. $results contains subset of valid input_ids. have to query db to
@@ -177,20 +187,21 @@ sub translate {
       %id2valid=map {$_=>1} @$valid_ids;
       @input_ids=@$valid_ids unless defined $input_ids;
     }
+    # NG 13-06-21: moved addition of VALID column from generate_query to here
+    map {splice(@$_,1,0,1)} @$results;
     # NG 13-06-10: convert to lower case for case insensitive comparisons
     @missing_ids=grep {!$have_id{lc $_}} @input_ids;
     push(@$results,map {[$_,$id2valid{lc $_}||0,(undef)x$num_outputs]} @missing_ids);
- 
-    # post-processing
-    # 1) count. return number of rows
-    # 2) limit. select subset of rows
-    # 3) count+limit: return min of count, limit
-    if ($args->count) {
-      $results=scalar @$results;
-      $results=min($args->limit,$results) if defined $args->limit;
-    } elsif (defined $args->limit) {
-      @$results=@$results[0..min($args->limit,scalar @$results)-1];
-    }
+  }
+  # post-processing
+  # 1) count. return number of rows
+  # 2) limit. select subset of rows
+  # 3) count+limit: return min of count, limit
+  if ($args->count) {
+    $results=scalar @$results;
+    $results=min($args->limit,$results) if defined $args->limit;
+  } elsif (defined $args->limit) {
+    @$results=@$results[0..min($args->limit,scalar @$results)-1];
   }
   $results;
 }
@@ -235,9 +246,11 @@ sub generate_query {
   my $dbh=$self->autodb->dbh;
   my @columns=($input_name,@output_names);
   # splice in VALID column if validating
-  splice(@columns,1,0,'1 AS VALID') if $args->validate;
+  # NG 13-06-21: move addition of VALID column to post-processing
+  # splice(@columns,1,0,'1 AS VALID') if $args->validate;
   # MySQL doesn't allow duplicate columns in inner queries. sigh..
   @columns=uniq(@columns) if $args->count;
+  my $columns=\@columns;
   my $columns_sql=join(', ',@columns);
   
   my $input_master=$input_idtype->master;
@@ -247,8 +260,20 @@ sub generate_query {
     ($input_master->explicit || $input_idtype->degree>1 || @idtypes==1 || !defined($input_ids))?
       $input_master->tablename: ();
   # get rest of query by exploring query graph
-  push(@join_tables,map {$self->id2name($_)} 
-       $self->traverse($self->make_query_graph(@idtypes))) if @idtypes>1;
+  # NG 13:06-19: change one-liner to 'if' block as prelude to pdups removal
+  # push(@join_tables,map {$self->id2name($_)} 
+  #      $self->traverse($self->make_query_graph(@idtypes))) if @idtypes>1;
+  my($root,$query_graph,$query_paths);
+  if (@idtypes>1) {
+    # NOTE: input must be 1st idtype!
+    ($root,$query_graph)=$self->make_query_graph(@idtypes);
+
+    # NG 13-06-19: added make_query_paths. needed for pdup elimination
+    $query_paths=$self->make_query_paths($query_graph,$input_idtype,@output_idtypes)
+      unless $args->keep_pdups;
+
+    push(@join_tables,map {$self->id2name($_)} $self->traverse($root,$query_graph));
+  }
   # add in filter masters for any with histories
   push(@join_tables,map {$_->tablename} grep {$input_idtype != $_} @filter_idtypes);
   my $join_sql=join(' NATURAL LEFT OUTER JOIN ',@join_tables);
@@ -303,9 +328,16 @@ sub generate_query {
   # Note: 'AS T' needed at end of query because mySQL sees inner select as defining derived
   #       table and requires every derived table have alias
   # NG 12-11-23: if validating, have to do count in code...
-  $sql=qq(SELECT COUNT(*) FROM ($sql) AS T) if $args->count && !$args->validate;
+  # NG 13-06-20: with pdup removal, have to do count in code. kinda makes count pointless....
+  $sql=qq(SELECT COUNT(*) FROM ($sql) AS T)
+    if $args->count && $args->keep_pdups && !$args->validate;
   
-  $sql;
+  # NG 13-06-19: added $query_paths,$input_name,@output_names to return. 
+  #              needed for pdup elimination
+  # NG 13-06-21: replace $input_name,@output_names by $columns - SQL column names
+  #              of results table
+  # $sql;
+  ($sql,$query_paths,$columns);
 }
 # input is IdType object. handles history
 sub _generate_colname {
@@ -331,7 +363,7 @@ sub schema_graph {
 # query graph is a steiner minimum tree whose terminals are the input and output IdTypes
 # trivial to compute for __non_redundant__ schema. just prune back non-terminal leaves
 # first arg is input_idtype; rest are output_idtypes. specified as objects!
-# returns ($root,$query_graph)
+# returns ($root,$query_graph). note that $root needed by traverse
 sub make_query_graph {
   my $self=shift;
   my @terminals=map {$_->id} @_; # nodes. not objects
@@ -353,19 +385,135 @@ sub make_query_graph {
   #              to achieve correct UR semantics. processing moved to generate_query.
   #              now use any neighbor of input IdType
   my($root)=$query_graph->neighbors($input_node);
-#  # root processing: if input_idtype touches >1 maptable, add master as root
-#  #                  else use the input_idtype's maptable as root
-#   my $root;
-#   if ($query_graph->degree($input_node)>1) {
-#     my $master_obj=$input_idtype->master or 
-#       confess "No Master found for input IdType ".$input_idtype->name;
-#     $root=$master_obj->id;
-#     $query_graph->add_edge($root,$input_node);
-#   } else {
-#     ($root)=$query_graph->neighbors($input_node);
-#   } 
   ($root,$query_graph);
 }
+# NG 13-06-19: added make_query_paths 
+# enumerate root-to-leaf paths in results graph, extracted from query graph
+#   results graph is directed tree. nodes are idtypes. edges represent paths in query graph
+#   rooted at input
+# input, outputs are idtypes
+sub make_query_paths {
+  my $self=shift;
+  my($query_graph,$input_idtype,@output_idtypes)=@_;
+  my($root,$results_graph)=$self->make_results_graph($query_graph,$input_idtype,@output_idtypes);
+  my @paths=paths($root,$results_graph);
+  wantarray? @paths: \@paths
+}
+sub make_results_graph {
+  my $self=shift;
+  my($query_graph,$input_idtype,@output_idtypes)=@_;
+  my($input,@outputs)=map {$_->id} ($input_idtype,@output_idtypes);
+  my $results_graph=new Graph::Directed;
+  map {$results_graph->add_vertex($_)} ($input,@outputs);
+  elide($input,$query_graph,$results_graph);
+  # if input has history and also appears in output add edge from history to idtype
+  my $root;
+  if ($input_idtype->history && grep {$input_idtype==$_} @output_idtypes) {
+    $root='_X_'.$input_idtype->name;
+    $results_graph->add_edge($root,$input);
+  } else {
+    $root=$input;
+  }
+  ($root,$results_graph);
+}
+# TODO: belongs is some Util
+# group a list by categories returned by sub
+# has to be declared before use, because of prototype
+sub group (&@) {
+  my($sub,@list)=@_;
+  my %groups;
+  for (@list) {
+    my $group=&$sub($_);
+    my $members=$groups{$group} || ($groups{$group}=[]);
+    push(@$members,$_);
+  }
+  wantarray? %groups: \%groups;
+}
+# collapse paths in query_graph to edges in results_graph
+my %seen;
+sub elide {
+  my($root)=@_;
+  %seen=($root=>$root);
+  _elide($root,@_);
+}
+sub _elide {
+  my($prev,$node,$query_graph,$results_graph)=@_;
+  my @maptables=map {$seen{$_}=$_} grep {!$seen{$_}} $query_graph->neighbors($node);
+  my @idtypes=map {$seen{$_}=$_} grep {!$seen{$_}} map {$query_graph->neighbors($_)} @maptables;
+  # output idtypes already in results graph
+  my %groups=group {$results_graph->has_vertex($_)? 'output': 'internal'} @idtypes;
+  my @outputs=@{$groups{output}||[]};
+  my @internals=@{$groups{internal}||[]};
+  map {$results_graph->add_edge($prev,$_)} @outputs;
+
+  # TODO: don't recurse over leafs
+  # each output roots another traversal
+  map {_elide($_,$_,$query_graph,$results_graph)} @outputs;
+  # each internal continues current traversal
+  map {_elide($prev,$_,$query_graph,$results_graph)} @internals;
+  $results_graph;
+}
+
+# enumerate root to leaf paths in results graph (actually, any directed tree)
+sub paths {
+  my($root,$tree)=@_;
+  my @successors=$tree->successors($root);
+  my @paths=map {paths($_,$tree)} @successors;
+  @paths=@paths? _paths($root,@paths): [$root];
+  # strip off 'idtype:' prefix. no longer needed (since all nodes are idtypes)
+  @paths=map {[map {s/^idtype://; $_} @$_]} @paths;
+  wantarray? @paths: \@paths;
+}
+# expand $root, list of paths
+sub _paths {
+  my $root=shift;
+  map {unshift(@$_,$root); $_;} @_;
+}
+
+########################################
+# remove partial duplicates
+sub remove_pdups {
+  my $self=shift;
+  my($results,$query_paths,$columns)=@_;
+  # if $query_paths is undef, no pdups possible
+  return $results unless $query_paths;
+  my @rows=sort {num_undefs($a) <=> num_undefs($b)} @$results;
+  my $results=[];		# $results also used for output
+  my @paths=@$query_paths;
+  my @matchers=map {new Data::Babel::PrefixMatcher} 0..$#paths;
+  my %col2idx=val2idx(@$columns);
+  my @path_idxs=map {[@col2idx{@$_}]} @paths; # used to extract cols for each path
+  my $row_idx=0;
+  for my $row (@rows) {
+    my @subrows=map {my @idxs=@{$_}; [@$row[@idxs]]} @path_idxs;
+    my $new=0;			# assume it's an old row - not pdup
+    my @subhits;
+    for (my $j=0; $j<@paths; $j++) {
+      my $subrow=$subrows[$j];
+      my $matcher=$matchers[$j];
+      my $subhits=$matcher->find_data($subrow); # returns ARRAY of rowidxs
+      push(@subhits,$subhits);
+    }
+    # compute intersection of subhits
+    my @hits=intersect(@subhits);
+    unless (@hits) {
+      # it's a new row!
+      push(@$results,$row);	# add to output
+      # add to matchers
+      for (my $j=0; $j<@paths; $j++) {
+	my $subrow=$subrows[$j];
+	my $matcher=$matchers[$j];
+	$matcher->put_data($subrow,$row_idx);
+      }
+    }
+    $row_idx++;
+  }
+  $results;
+}
+# calculate number of undefs in row
+sub num_undefs {scalar grep {!defined $_} @{$_[0]}}
+
+########################################
 
 # make implicit masters
 #   every IdType needs a Master. if Master not defined explicitly, define it here
@@ -464,7 +612,7 @@ sub show_schema_graph {
 # can be called as function or method
 sub show_graph {
   my $graph=ref($_[0]) && $_[0]->isa('Graph')? $_[0]: $_[1];
-  print '  ',join("\n",map {_edge_str($graph,$_)} _sort_edges($graph->edges)),"\n";
+  print '  ',join("\n  ",map {_edge_str($graph,$_)} _sort_edges($graph->edges)),"\n";
 }
 sub _sort_edges {
   my @edges=map {$_->[0] le $_->[1]? $_: [$_->[1],$_->[0]]} @_;
@@ -578,8 +726,26 @@ sub _2idtype {
 #   $idtype->name;
 # }
 
-# TODO: belongs in some Util
+########################################
+# TODO: move these functions to some Util
 sub flatten {map {'ARRAY' eq ref $_? @$_: $_} @_;}
+# produce hash mapping each element of list to its position. doesn't worry about duplicates
+sub val2idx {
+  my $i=0;
+  my %val2idx=map {$_=>$i++} @_;
+  wantarray? %val2idx: \%val2idx;
+}
+# compute intersection of 2 or more lists
+# TODO: simplify interface with prototype
+sub intersect {
+  my %x=map {$_=>1} flatten(shift);
+  while (@_) {
+    my $y=shift;
+    %x=map {$_=>1} grep {$x{$_}} @$y;
+  }
+  my @x=keys %x;
+  wantarray? @x: \@x;
+}
 
 # NG 10-08-08. sigh.'verbose' in Class::AutoClass::Root conflicts with method in Base
 #              because AutoDB splices itself onto front of @ISA.
@@ -594,7 +760,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.11
+Version 1.12
 
 =head1 SYNOPSIS
 
@@ -899,6 +1065,22 @@ option is set, the output will contain one row for each input
 identifier; this is essentially a (possibly re-ordered) copy of the
 input list with duplicates removed.
 
+=head2 Partial duplicates
+
+A partial duplicate is a row that contains less information than
+another row and is therefore redundant.  More precisely, a row is a
+partial duplicate of another row if for all fields, (1) the rows are
+identical or, (2) the partial duplicate is NULL.  In the example below,
+the second row is a partial duplicate of the first.
+
+ gene_symbol  organism_name  gene_entrez  probe_id
+ HTT          human          3064         A_23_P212749
+ HTT          human          3064
+
+By default, 'translate' removes partial duplicates. If for some reason
+you want to keep them, you can specify the 'keep_pdups' option to
+'translate'.
+
 =head2 Technical details
 
 A basic Babel property is that translations are stable. You can add
@@ -1036,6 +1218,8 @@ The available class attributes are
            count          boolean. If true, return number of output rows rather 
                           than the rows themselves. Equivalent to 'count'
                           method.
+           keep_pdups     boolean. If true, partial duplicates are not removed
+                          from the result.
 
 =head3 Notes on translate
 
