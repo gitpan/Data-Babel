@@ -18,12 +18,12 @@ use strict;
 our @ISA=qw(Exporter);
 
 our @EXPORT=qw($OPTIONS $autodb $babel $dbh
-	       @ops @filter_subsets @output_subsets
+	       @filter_subsets @output_subsets
 	       load_maptable load_pdups load_master 
 	       idtype_subsets id_range input_ids invalid_ids idtype2ids idtype2invalids idtype2col
                init doit make_filter);
 our($OPTIONS,%OPTIONS,@OPTIONS,$autodb,$babel,$dbh,
-    @ops,@idtypes,@idtype_subsets,@filter_subsets,@output_subsets);
+    @idtypes,@idtype_subsets,@filter_subsets,@output_subsets);
 
 # setup options
 #
@@ -48,8 +48,8 @@ our($OPTIONS,%OPTIONS,@OPTIONS,$autodb,$babel,$dbh,
 #
 # active test options
 # 
-# op is list of 'translate', 'count' (or any abbreviations thereof)
-# validate causes validate option to be added to operations
+# count causes 'count' option to be added to translate
+# validate causes 'validate' option to be added to translate
 # filter set automatically - controls calculation of @filter_subsets
 # num_invalid_ids added to input_ids
 # num_input_ids, num_invalid_ids, num_outputs, num_filters specify min,max, eg '1,5'
@@ -71,19 +71,17 @@ our($OPTIONS,%OPTIONS,@OPTIONS,$autodb,$babel,$dbh,
 
 @OPTIONS=qw(explicit=i history=i extra_ids=i extra_idtypes=s pdups=i
 	    db_type=s graph_type=s link_type=s basecalc=i num_maptables=i arity=i
-	    op=s validate 
+	    count validate 
 	    filter filter_none filter_all filter_undef
 	    num_input_ids=s num_invalid_ids=s num_outputs=s num_filters=s
 	    input_ids_all);
-our %op=abbrev qw(translate count);
 our %db_type=abbrev qw(binary staggered basecalc);
 our %graph_type=abbrev qw(star chain tree);
 our %link_type=abbrev qw(starlike chainlike);
 
 # defaults appropriate for quick CPAN install
 our %DEFAULTS=
-  (user_type=>'installer',
-   db_type=>'staggered',graph_type=>'star',link_type=>'chainlike',basecalc=>2,arity=>4,
+  (db_type=>'staggered',graph_type=>'star',link_type=>'chainlike',basecalc=>2,arity=>4,
    num_maptables=>4,extra_idtypes=>1,op=>'translate',
   );
 
@@ -109,7 +107,6 @@ sub init {
     # @idtype_subsets=sort_name_lists(map {[$_->members]} $power_set->members);
     @filter_subsets=idtype_subsets('num_filters','link') if $OPTIONS{filter};
     @output_subsets=idtype_subsets('num_outputs','leaf');
-    @ops=@{$OPTIONS->op};
   } else {			# setup new database
     cleanup_db($autodb);		# cleanup database from previous test
     Data::Babel->autodb($autodb);
@@ -123,16 +120,13 @@ sub get_options {
   # initialize to defaults then overwrite with ones explicitly set
   %OPTIONS=%DEFAULTS;
   if (!$setup) {
-    # add in options saved from setup
+    # if not setup, add in options saved from setup
     my $saved_options=get t::stash autodb=>$autodb,id=>'translate_options';
     @OPTIONS{keys %$saved_options}=values %$saved_options if $saved_options;
   }
   GetOptions(\%OPTIONS,@OPTIONS);
   # if setup, save options for later tests
   put t::stash autodb=>$autodb,id=>'translate_options',data=>\%OPTIONS if $setup;
-  
-  # split --ops - may be list
-  my @ops=split(/\W+/,$OPTIONS{op});
   
   # deal with range options
   for my $option (qw(num_input_ids num_invalid_ids num_outputs num_filters)) {
@@ -149,8 +143,6 @@ sub get_options {
       $OPTIONS{$option}=[$min,$max];
     }}
   # expand abbreviations
-  @ops=map {$op{$_} or confess "illegal value for option op"} @ops;
-  $OPTIONS{op}=\@ops;
   for my $option (qw(db_type graph_type link_type)) {
     next unless defined $OPTIONS{$option};
     my %abbrev=eval "\%$option";
@@ -179,7 +171,7 @@ sub get_options {
   $OPTIONS{history}=$OPTIONS{explicit}*$OPTIONS{history};
   $OPTIONS{extra_ids}=$OPTIONS{explicit}*$OPTIONS{extra_ids};
 
-  # filter is special
+  # filter set automatically from script name
   $OPTIONS{filter}=1 if !defined($OPTIONS{filter}) && scriptbasename=~/filter/;
 
   $OPTIONS=new Hash::AutoHash %OPTIONS;
@@ -247,26 +239,25 @@ sub invalid_ids {
 
 # args are idtype names
 sub doit {
-  my($op,$input_name,$input_ids,$filters,$output_names,$file,$line)=@_;
+  my($input_name,$input_ids,$filters,$output_names,$file,$line)=@_;
   $filters={} unless defined $filters;
   my $ok=1;
   my @filter_names=keys %$filters;
-  
-  my(@args,$label);
+  my @args=(input_idtype=>$input_name,filters=>$filters,output_idtypes=>$output_names,
+	    count=>$OPTIONS->count,validate=>$OPTIONS->validate);
+  my $label;
   if ($input_ids ne 'all') {
-    @args=(input_idtype=>$input_name,input_ids=>$input_ids,filters=>$filters,
-	   output_idtypes=>$output_names);
+    push(@args,input_ids=>$input_ids);
     $label=$OPTIONS->db_type.": input=$input_name, num input_ids=".
-      (defined($input_ids)? scalar(@$input_ids): 0).
+      (defined $input_ids? scalar(@$input_ids): 'all').
 	" filters=@filter_names, outputs=@$output_names";
   } else {
-    @args=(input_idtype=>$input_name,input_ids_all=>1,filters=>$filters,
-	   output_idtypes=>$output_names);
+    push(@args,input_ids_all=>1);
     $label=$OPTIONS->db_type.": input=$input_name, input_ids_all=1, filters=@filter_names, outputs=@$output_names";
   }
-  push(@args,validate=>1) if $OPTIONS->validate;
   my $correct=select_ur(babel=>$babel,@args);
-  my $actual=$babel->$op(@args);
+  my $actual=$babel->translate(@args);
+  my $op=!$OPTIONS->count? 'translate': 'count';
   $ok&&=cmp_op_quietly($actual,$correct,$op,"$op $label",$file,$line);
   $ok;
 }
@@ -367,7 +358,7 @@ sub load_master {
 # all valid input id for a given type
 # arg is IdType or name
 our %IDS;			# cache of id lists
-our %IDX_NEXT;			# idx of next id to use - so we cycke through them...
+our %IDX_NEXT;			# idx of next id to use - so we cycle through them...
 sub idtype2ids {
   my($idtype,$name)=ref $_[0]? ($_[0],$_[0]->name): ($babel->name2idtype($_[0]),$_[0]);
   my $ids=$IDS{$name} || ($IDS{$name}=fetch_ids($idtype,$name));
@@ -386,6 +377,7 @@ sub fetch_ids {
   my $sql=qq(SELECT $column FROM $table);
   my $ids=$dbh->selectcol_arrayref($sql);
 }
+
 # helper function that takes into account history
 sub idtype2col {
   my($idtype,$name)=ref $_[0]? ($_[0],$_[0]->name): ($babel->name2idtype($_[0]),$_[0]);

@@ -19,13 +19,14 @@ my $bundle=$bundle{$OPTIONS{bundle}} || confess "Invalid bundle option $OPTIONS{
 my $subtestdir=subtestdir;
 opendir(DIR,$subtestdir) or confess "Cannot read subtest directory $subtestdir: $!";
 my @testfiles=sort grep /^[^.].*\.t$/,readdir DIR;
+closedir DIR;
+
 my @tests;
 if ($bundle eq 'install') {
   # run each test once with default parameters
   @tests=@testfiles;
 }
 # TODO: implement other bundles
-
 # my $startup=shift @testfiles;
 # @testfiles=grep /main/,@testfiles if $bundle eq 'short';
 # closedir DIR;

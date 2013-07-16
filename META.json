@@ -74,7 +74,7 @@
    "provides" : {
       "Data::Babel" : {
          "file" : "lib/Data/Babel.pm",
-         "version" : "1.12_01"
+         "version" : "1.12_02"
       },
       "Data::Babel::Base" : {
          "file" : "lib/Data/Babel/Base.pm",
@@ -119,5 +119,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.12_01"
+   "version" : "1.12_02"
 }

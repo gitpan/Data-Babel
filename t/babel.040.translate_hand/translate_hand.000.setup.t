@@ -11,45 +11,25 @@ use strict;
 init('setup');
 
 # create Babel directly from config files
-# data and master files are different with history
-my $idtype_ini='translate_hand.idtype.ini';
-my $master_ini=!$OPTIONS->history? 'translate_hand.master.ini':
-  'translate_hand.master_history.ini';
-my $maptable_ini='translate_hand.maptable.ini';
-
 my $name='test';
 $babel=new Data::Babel
   (name=>$name,
-   idtypes=>File::Spec->catfile(scriptpath,$idtype_ini),
-   masters=>File::Spec->catfile(scriptpath,$master_ini),
-   maptables=>File::Spec->catfile(scriptpath,$maptable_ini));
-isa_ok($babel,'Data::Babel','sanity test - Babel created from config files');
-
-# quietly test simple attributes
-cmp_quietly($babel->name,$name,'sanity test - Babel attribute: name');
-cmp_quietly($babel->id,"babel:$name",'sanity test - Babel attribute: id');
-cmp_quietly($babel->autodb,$autodb,'sanity test - Babel attribute: autodb');
+   idtypes=>$OPTIONS->idtype_ini,masters=>$OPTIONS->master_ini,maptables=>$OPTIONS->maptable_ini);
+check_babel_sanity('new');
 
 # setup the database
-load_handcrafted_maptables($babel,$data);
-load_handcrafted_masters($babel,$data);
+map {my $name=$_; load_maptable($babel,$name,$data->$name->data)} @{$OPTIONS->maptables};
+map {my $name="${_}_master"; load_master($babel,$name,$data->$name->data)} @{$OPTIONS->explicits};
 $babel->load_implicit_masters;
 load_ur($babel,'ur');
+check_database_sanity();
 
-# test component-object attributes
-check_handcrafted_idtypes($babel->idtypes,'mature','sanity test - Babel attribute: idtypes');
-check_handcrafted_masters($babel->masters,'mature','sanity test - Babel attribute: masters');
-check_handcrafted_maptables($babel->maptables,'mature',
-			    'sanity test - Babel attribute: maptables');
-my $ok=check_database_sanity($babel,'sanity test - database',3);
-
-# test ur construction for sanity
-my $correct=prep_tabledata($data->ur->data);
-my @columns=qw(type_001 type_002 type_003 type_004);
-push(@columns,qw(_X_type_001 _X_type_002)) if $OPTIONS->history;
-my $columns=join(',',@columns);
-my $actual=$dbh->selectall_arrayref(qq(SELECT $columns FROM ur));
-cmp_table($actual,$correct,'sanity test - ur construction');
-
+if ($OPTIONS->standard) {
+  # for standard handcrafted dbs, test component-object attributes
+  check_handcrafted_idtypes($babel->idtypes,'mature','sanity test - Babel attribute: idtypes');
+  check_handcrafted_masters($babel->masters,'mature','sanity test - Babel attribute: masters');
+  check_handcrafted_maptables($babel->maptables,'mature',
+			      'sanity test - Babel attribute: maptables');
+}
 done_testing();
 

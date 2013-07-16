@@ -43,7 +43,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.12_01
+    version: 1.12_02
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -89,4 +89,4 @@ requires:
   Tie::ToObject: 0.03
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.12_01
+version: 1.12_02

@@ -1,6 +1,9 @@
 Revision history for Data-Babel
 
-1.12_01	 2013-06-DD
+1.12_02	 2013-07-16
+	 Clean up tests to improve install speed
+
+1.12_01	 2013-07-10
 	Bug fixes
 	- Fixed pseudo-duplicates bug in which translate returned rows
 	  that were identical on all non-null columns, differing only

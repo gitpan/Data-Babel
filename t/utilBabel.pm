@@ -13,19 +13,24 @@ our @ISA=qw(Exporter);
 
 our @EXPORT=
   (@t::util::EXPORT,
-   qw(check_object_basics sort_objects sort_name_lists power_subsets vary_case
-      prep_tabledata load_maptable load_master load_ur order_tables uniq_rows grep_rows
-      select_ur filter_ur count_ur select_ur_sanity 
-      check_table check_database_sanity check_maptables_sanity check_masters_sanity 
-      cleanup_db cleanup_ur
-      cmp_objects cmp_objects_quietly cmp_table cmp_table_quietly cmp_table_nocase
-      cmp_op cmp_op_quietly cmp_op_quickly
+   qw(check_object_basics sort_objects power_subsets vary_case 
+      prep_tabledata load_maptable load_master load_ur select_ur select_ur_sanity cleanup_db
+      check_database_sanity check_maptables_sanity check_masters_sanity 
       check_handcrafted_idtypes check_handcrafted_masters check_handcrafted_maptables
       check_handcrafted_name2idtype check_handcrafted_name2master check_handcrafted_name2maptable
       check_handcrafted_id2object check_handcrafted_id2name check_implicit_masters
       load_handcrafted_maptables load_handcrafted_masters
+      cmp_table cmp_table_quietly cmp_table_nocase
+      cmp_op cmp_op_quietly cmp_op_quickly
       pnames pgraph
     ));
+# NG 13-07-16: not used now but keep for future
+push(@EXPORT,qw(uniq_rows grep_rows sort_rows check_table 
+		cmp_objects cmp_objects_quietly order_tables));
+# NG 13-07-16: used internally
+#              filter_ur count_ur cleanup_ur
+# NG 13-07-16: obsolete. 
+#              sort_name_lists
 
 sub check_object_basics {
   my($object,$class,$name,$label)=@_;
@@ -58,11 +63,6 @@ sub sort_objects {
   my @sorted_objects=sort {$a->name cmp $b->name} @$objects;
   wantarray? @sorted_objects: \@sorted_objects;
 }
-# NG 13-06-19: sort arrays of names, typically output subsets produced by power_set
-sub sort_name_lists {
-  sort {@$a<=>@$b || first {$_} map {$a->[$_] cmp $b->[$_]} 0..$#$a} @_;
-}
-
 # NG 13-07-07: generate subsets of power set. much faster than Set::Scalar
 #             for large sets if number of subsets not too big
 # 1st argument is either ARRAY ref or integer
@@ -392,6 +392,7 @@ sub remove_pdups {
   }
   # TODO: put this under some sort of flag...
   # diag('+++ select_ur pseudo_dups='.$pseudo_dups) if $pseudo_dups;
+  # diag('+++ select_ur pseudo_dups='.$pseudo_dups);
   $table;
 }
 # used to sort by number of undefs
@@ -450,6 +451,11 @@ sub grep_rows {
   my $pattern=join('|',map {"\^$_\$"} @$ids);
   $pattern=qr/$pattern/;
   [grep {$_->[$col]=~/$pattern/} @$table];
+}
+# NG 13-06-19: sort arrays of names, typically output subsets produced by power_set
+# NG 13-07-16: renamed 
+sub sort_rows {
+  sort {@$a<=>@$b || first {$_} map {$a->[$_] cmp $b->[$_]} 0..$#$a} @_;
 }
 # process filters ARRAY - a bit hacky 'cuz filter=>undef not same as filter=>[undef]
 sub filters_array {
@@ -760,7 +766,7 @@ sub cleanup_db {
 sub cleanup_ur {t::FullOuterJoinTable->cleanup(@_) }
 
 ########################################
-# these functions test our hand-crafted Babel & components
+# these functions test our 'standard' hand-crafted Babel & components
 
 sub check_handcrafted_idtypes {
   my($actual,$mature,$label)=@_;

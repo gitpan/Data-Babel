@@ -29,12 +29,11 @@ for my $input (map {$_->name} @{$babel->idtypes}) {
 	invalid_ids($input,$num_invalid_ids,$min_invalid_ids,$max_invalid_ids);
       push(@$input_ids,@$invalid_ids);
     }
-    for my $op (@ops) {
-      my $ok=doit($op, $input,$input_ids,undef,$outputs,__FILE__,__LINE__);
+    my $ok=doit($input,$input_ids,undef,$outputs,__FILE__,__LINE__);
       my $label=
-	"op=$op input=$input num_ids=".(defined $input_ids? scalar @$input_ids: 'all').
+	"input=$input num_ids=".(defined $input_ids? scalar @$input_ids: 'all').
 	  " outputs=@$outputs";
       report_pass($ok,$label);
-    }}}
+  }}
 done_testing();
 

@@ -136,9 +136,9 @@ load_handcrafted_maptables($babel,$data);
 # NG 12-09-27: added load_implicit_masters
 $babel->load_implicit_masters;
 check_implicit_masters($babel,$data,'load_implicit_masters',__FILE__,__LINE__);
-
 load_handcrafted_masters($babel,$data);
 # load_ur($babel,'ur');
+
 my $correct=prep_tabledata($data->basics->data);
 my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
@@ -176,6 +176,15 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>'type_001/a_001',
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'translate with input_ids=>scalar');
+# NG 13-07-16: test big IN
+my $big=10000;
+my $correct=prep_tabledata($data->basics->data);
+my @input_ids=qw(type_001/a_000 type_001/a_001 type_001/a_111);
+push(@input_ids,map {"extra_$_"} (1..$big));
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>\@input_ids,
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate big IN');
 
 ########################################
 # NG 12-09-23: added count
@@ -220,6 +229,16 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>'type_001/a_001',
    output_idtypes=>[qw(type_002 type_003 type_004)],count=>1);
 is($actual,$correct,'count input_ids=>scalar: option');
+# NG 13-07-16: test big IN
+my $big=10000;
+my $correct=prep_tabledata($data->basics->data);
+$correct=scalar @$correct;
+my @input_ids=qw(type_001/a_000 type_001/a_001 type_001/a_111);
+push(@input_ids,map {"extra_$_"} (1..$big));
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>\@input_ids,
+   output_idtypes=>[qw(type_002 type_003 type_004)],count=>1);
+is($actual,$correct,'count big IN');
 
 ########################################
 # NG 12-11-23: added validate option
@@ -247,6 +266,16 @@ my $actual=$babel->validate
 		  type_001/a_110 type_001/a_111)],validate=>1,
    output_idtypes=>['type_003']);
 cmp_table($actual,$correct,'validate with output idtypes');
+# NG 13-07-16: test big IN
+my $big=1000;			# smaller than usual $big, else test too slow
+my $correct=prep_tabledata($data->basics_validate_method->data);
+my @extra_ids=map {"extra_$_"} (1..$big);
+push(@$correct,map {[$_,0,undef]} @extra_ids);
+my @input_ids=
+  qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_011 type_001/a_110 type_001/a_111);
+push(@input_ids,@extra_ids);
+my $actual=$babel->validate(input_idtype=>'type_001',input_ids=>\@input_ids);
+cmp_table($actual,$correct,'validate big IN');
 
 ########################################
 # NG 12-08-22: added filter
@@ -286,6 +315,24 @@ my $actual=$babel->translate
 	     type_004=>'type_004/a_111',type_004=>'type_004/a_111'],
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'translate with ARRAY of filters (multiple filters)');
+
+# NG 13-07-16: filter=>'invalid',filter=>[] - match nothing
+my $correct=[];
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>[type_004=>'invalid'],
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate with filter matching nothing (scalar)');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>['invalid']},
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate with filter matching nothing (ARRAY)');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>[]},
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate with filter matching nothing (empty ARRAY)');
 
 ########################################
 # NG 12-09-22: added/fixed filter=>undef and related
@@ -333,6 +380,17 @@ my $actual=$babel->translate
    filters=>[type_003=>undef,type_003=>'type_003/a_111'],
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'translate with ARRAY of filter=>[undef,111]');
+
+# NG 13-07-16: test big IN
+my $big=10000;
+my $correct=prep_tabledata($data->basics_filter->data);
+my @filter_ids=('type_004/a_111');
+push(@filter_ids,map {"extra_$_"} (1..$big));
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>\@filter_ids},
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate filter big IN');
 
 ########################################
 # NG 12-08-25: added using objects as idtypes
