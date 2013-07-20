@@ -34,7 +34,7 @@ our($OPTIONS,%OPTIONS,@OPTIONS,$autodb,$babel,$dbh,$data,
 #    baseline (default)
 #    history - some idtypes have histories
 #    pdups_multi - databse generates pdups via multi-table queries
-#    pdups_wide - databse generates pdups via singel wide table
+#    pdups_wide - databse generates pdups via single wide table
 #  ----- ones below here generally set from ini file -----
 #  maptables - list of expected maptable names
 #  idtypes - list of expected idtype names
@@ -52,6 +52,8 @@ our($OPTIONS,%OPTIONS,@OPTIONS,$autodb,$babel,$dbh,$data,
 # 
 # count causes 'count' option to be added to translate
 # validate causes 'validate' option to be added to translate
+# keep_pdups causes 'keep_pdups' option to be added to translate
+#
 # filter set automatically - controls calculation of @filter_subsets
 # num_invalid_ids added to input_ids
 # limit - if set, test run w/o then w/ limit
@@ -62,19 +64,10 @@ our($OPTIONS,%OPTIONS,@OPTIONS,$autodb,$babel,$dbh,$data,
 #   if only one number, eg, '5', it's exact: min=max=number
 #   'all' permitted for max (except for num_invalid_ids, limit)
 #   negative values equivalent to all minus value, eg, '-2' is all-2
-# -----------------------------------------------------
-# ----  this freeze stuff probably unncessary here ----
-#   if option missing or empty (except limit), corresponding option 'frozen' - see below
-#     freeze outputs, freeze filters
-#       for very fast tests, these guys take on a single value
-#     freeze input_ids, freeze invalid_ids
-#       same as min=max=<some default value> 
-#       not really useful, but included for consistency
-# -----------------------------------------------------
 
 @OPTIONS=qw(what=s maptables=s idtypes=s explicits=s implicits=s histories=s
 	    ini=s idtype_ini=s master_ini=s history_ini=s data_ini=s
-	    count validate
+	    count validate keep_pdups
 	    num_input_ids=s num_invalid_ids=s num_filters=s num_outputs=s limit=s);
 
 # unclear what defaults appropriate for quick CPAN install
@@ -103,6 +96,9 @@ sub init {
     @output_subsets=idtype_subsets('num_outputs');
     @output_subsets=grep {none {$_=~/multi/} @$_} @output_subsets
       if $OPTIONS->what eq 'pdups_multi';
+    # set pdups removal options if necessary
+    my($pdups_group_cutoff,$pdups_prefixmatcher_cutoff,$pdups_prefixmatcher_class)=
+      @$OPTIONS{qw(pdups_group_cutoff pdups_prefixmatcher_cutoff pdups_prefixmatcher_class)};
   } else {			# setup new database
     cleanup_db($autodb);		# cleanup database from previous test
     Data::Babel->autodb($autodb);

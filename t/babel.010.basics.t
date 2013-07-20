@@ -164,6 +164,12 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids_all=>1,
    output_idtypes=>[qw(type_002 type_003 type_004)]);
 cmp_table($actual,$correct,'translate all: input_ids_all=>1');
+# NG 13-07-19: keep_pdups. minimal test since there are not pdups in this data...
+my $actual=$babel->translate
+  (input_idtype=>'type_001',keep_pdups=>1,
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate all: keep partial duplicates');
+
 # NG 10-11-08: test limit
 my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
@@ -218,6 +224,17 @@ my $actual=$babel->translate
   (input_idtype=>'type_001',
    output_idtypes=>[qw(type_002 type_003 type_004)],count=>1);
 is($actual,$correct,'count all: option');
+
+# NG 13-07-19: keep_pdups. minimal test since there are not pdups in this data...
+my $actual=$babel->count
+  (input_idtype=>'type_001',keep_pdups=>1,
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+is($actual,$correct,'count all: method: keep partial duplicates');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',keep_pdups=>1,
+   output_idtypes=>[qw(type_002 type_003 type_004)],count=>1);
+is($actual,$correct,'count all: option: keep partial duplicates');
+
 # inputs_ids=>scalar
 my $correct=prep_tabledata($data->input_scalar->data);
 $correct=scalar @$correct;
@@ -246,9 +263,16 @@ my $correct=prep_tabledata($data->basics_validate_option->data);
 my $actual=$babel->translate
   (input_idtype=>'type_001',
    input_ids=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_011 
-		  type_001/a_110 type_001/a_111)],validate=>1,
-   output_idtypes=>['type_003']);
+		  type_001/a_110 type_001/a_111)],
+   validate=>1,output_idtypes=>['type_003']);
 cmp_table($actual,$correct,'translate with validate');
+# NG 13-07-19: keep_pdups. minimal test since there are not pdups in this data...
+my $actual=$babel->translate
+  (input_idtype=>'type_001',
+   input_ids=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_011 
+		  type_001/a_110 type_001/a_111)],
+   validate=>1,keep_pdups=>1,output_idtypes=>['type_003']);
+cmp_table($actual,$correct,'translate with validate: keep partial duplicates');
 
 ########################################
 # NG 12-11-25: added validate method
@@ -258,6 +282,13 @@ my $actual=$babel->validate
    input_ids=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_011 
 		  type_001/a_110 type_001/a_111)]);
 cmp_table($actual,$correct,'validate');
+# NG 13-07-19: keep_pdups. minimal test since there are not pdups in this data...
+my $actual=$babel->validate
+  (input_idtype=>'type_001',
+   input_ids=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_011 
+		  type_001/a_110 type_001/a_111)],
+   keep_pdups=>1);
+cmp_table($actual,$correct,'validate: keep partial duplicates');
 # NG 12-11-26: allowed output_idtypes in validate method
 my $correct=prep_tabledata($data->basics_validate_option->data);
 my $actual=$babel->validate

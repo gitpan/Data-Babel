@@ -14,6 +14,11 @@ lib/Data/Babel/IdType.pm
 lib/Data/Babel/MapTable.pm
 lib/Data/Babel/Master.pm
 lib/Data/Babel/PrefixMatcher.pm
+lib/Data/Babel/PrefixMatcher/BinarySearchList.pm
+lib/Data/Babel/PrefixMatcher/BinarySearchTree.pm
+lib/Data/Babel/PrefixMatcher/Exact.pm
+lib/Data/Babel/PrefixMatcher/PrefixHash.pm
+lib/Data/Babel/PrefixMatcher/Trie.pm
 Makefile.PL
 MANIFEST			This list of files
 META.json
@@ -66,17 +71,18 @@ t/babel.050.translate/translate.000.setup.t
 t/babel.050.translate/translate.010.main.t
 t/babel.050.translate/translate.020.filter.t
 t/babel.050.translate/translate.pm
+t/babel.060.pdups.t
 t/babel.098.examples.t
 t/babel.099.docs.t
 t/babel.100.no_autodb.t
 t/babel.101.headloc.t
 t/babel.102.dup_outs.t
 t/babel.103.id2name.t
-t/babel.104.null_rows.dir/null_rows.data.ini
-t/babel.104.null_rows.dir/null_rows.idtype.ini
-t/babel.104.null_rows.dir/null_rows.maptable.ini
-t/babel.104.null_rows.dir/null_rows.master.ini
 t/babel.104.null_rows.t
+t/babel.104.null_rows/null_rows.data.ini
+t/babel.104.null_rows/null_rows.idtype.ini
+t/babel.104.null_rows/null_rows.maptable.ini
+t/babel.104.null_rows/null_rows.master.ini
 t/babel.105.old_keyword.t
 t/babel.106.empty_ids.t
 t/babel.107.filter_undef.t

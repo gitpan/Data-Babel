@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.12_02';
+our $VERSION='1.12_03';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -21,25 +21,41 @@ use Class::AutoClass;
 use Carp;
 use Graph::Undirected;
 use Graph::Directed;
-use List::MoreUtils qw(uniq);
+use List::MoreUtils qw(uniq none);
 use List::Util qw(min);
 use Hash::AutoHash::Args;
-use Hash::AutoHash::MultiValued;
 use Data::Babel::Config;
 use Data::Babel::IdType;
 use Data::Babel::Master;
 use Data::Babel::MapTable;
-use Data::Babel::PrefixMatcher;
 use Data::Babel::HAH_MultiValued;
+use Data::Babel::PrefixMatcher::Exact;
+use Data::Babel::PrefixMatcher::Trie;
 
 use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES %SYNONYMS %DEFAULTS %AUTODB);
 use base qw(Data::Babel::Base);
 
 # name, id, autodb, verbose - methods defined in Base
-@AUTO_ATTRIBUTES=qw();
-@OTHER_ATTRIBUTES=qw(idtypes masters maptables schema_graph);
+#
+# NG 13-07-18: pdup removal
+# attributes to control partial duplicate removal algorithm
+#   pdups_group_cutoff - do not group results unless # rows > this
+#     set to 0 to always do grouping
+#   pdups_prefixmatcher_cutoff - run brute force algorithm unless # rows > this
+#     # rows is per group if grouping in effect
+#     set to 0 to always use prefix matching
+#   pdups_prefixmatcher_class - PrefixMatcher subclass used when prefix matching in effect
+#     final component of name. full name is Data::Babel::PrefixMatcher::<this>
+#     current choices: Trie (default), BinarySearchTree, BinarySearchList, PrefixHash
+# note that keep_pdups is passed argument to translate - not Babel attribute
+# defaults determined through (very limited) testing. hopefully not too far off...
+@AUTO_ATTRIBUTES=qw(pdups_group_cutoff pdups_prefixmatcher_cutoff );
+
+@OTHER_ATTRIBUTES=qw(idtypes masters maptables schema_graph pdups_prefixmatcher_class);
 %SYNONYMS=();
-%DEFAULTS=(idtypes=>[],masters=>[],maptables=>[],);
+%DEFAULTS=
+  (idtypes=>[],masters=>[],maptables=>[],
+   pdups_group_cutoff=>50,pdups_prefixmatcher_cutoff=>250,pdups_prefixmatcher_class=>'Trie');
 %AUTODB=(-collection=>'Babel',-keys=>qq(name string),-transients=>qq());
 Class::AutoClass::declare;
 
@@ -133,7 +149,7 @@ sub translate {
   # NG 12-08-22: okay to omit input_ids; same as input_ids_all=>1
   # confess "At least one of input_ids or input_ids_all must be set" if $ids_args==0;
   confess "At most one of input_ids or input_ids_all may be set" if $ids_args>1;
-  
+
   # NG 13-06-19: added $query_paths,$input,@outputs. needed for pdup elimination
   # NG 13-06-21: replace $input_name,@output_names by $columns - SQL column names
   #              of results table
@@ -144,7 +160,7 @@ sub translate {
   print "$sql\n" if $self->verbose;
   my $results=$dbh->selectall_arrayref($sql);
   confess "Database query failed:\n$sql\n".$dbh->errstr if $dbh->err;
-  $results=$self->remove_pdups($results,$query_paths,$columns) unless $args->keep_pdups;
+  $results=$self->remove_pdups($results,$query_paths,$columns,$args) unless $args->keep_pdups;
 
   # NG 12-11-23: if validating, have to do count in code...
   # NG 13-06-20: with pdup removal, have to do count in code always. 
@@ -471,47 +487,102 @@ sub _paths {
 }
 
 ########################################
-# remove partial duplicates
+# NG 13-07-18: remove partial duplicates (pdups)
 sub remove_pdups {
   my $self=shift;
-  my($results,$query_paths,$columns)=@_;
-  # if $query_paths is undef, no pdups possible
-  return $results unless $query_paths;
-  my @rows=sort {num_undefs($a) <=> num_undefs($b)} @$results;
-  my $results=[];		# $results also used for output
+  my($input,$query_paths,$columns,$args)=@_;
+  # if $query_paths is undef or <= 2 columns, no pdups possible
+  return $input unless $query_paths || @$columns>2;
+  my($group_cutoff,$prefixmatch_cutoff,$matcher_class)=
+    $self->get(qw(pdups_group_cutoff pdups_prefixmatcher_cutoff pdups_prefixmatcher_class));
+  my $exact_class='Data::Babel::PrefixMatcher::Exact';
+  my @matchers;
   my @paths=@$query_paths;
-  my @matchers=map {new Data::Babel::PrefixMatcher} 0..$#paths;
   my %col2idx=val2idx(@$columns);
   my @path_idxs=map {[@col2idx{@$_}]} @paths; # used to extract cols for each path
-  my $row_idx=0;
-  for my $row (@rows) {
-    my @subrows=map {my @idxs=@{$_}; [@$row[@idxs]]} @path_idxs;
-    my $new=0;			# assume it's an old row - not pdup
-    my @subhits;
-    for (my $j=0; $j<@paths; $j++) {
-      my $subrow=$subrows[$j];
-      my $matcher=$matchers[$j];
-      my $subhits=$matcher->find_data($subrow); # returns ARRAY of rowidxs
-      push(@subhits,$subhits);
-    }
-    # compute intersection of subhits
-    my @hits=intersect(@subhits);
-    unless (@hits) {
-      # it's a new row!
-      push(@$results,$row);	# add to output
-      # add to matchers
-      for (my $j=0; $j<@paths; $j++) {
-	my $subrow=$subrows[$j];
-	my $matcher=$matchers[$j];
-	$matcher->put_data($subrow,$row_idx);
-      }
-    }
-    $row_idx++;
+  my $output=[];
+
+  my(%groups,$skip0);
+  if (@$input<=$group_cutoff) {
+    %groups=('all',$input);
+  } else {
+    %groups=group {$_->[0]} @$input;
+    map {shift @$_} @path_idxs; # don't need 0'th element any more
+    $skip0=1;
   }
-  $results;
+  for my $group (values %groups) {
+    push(@$output,@$group),next unless @$group>1;
+    my @rows=sort {num_undefs($a) <=> num_undefs($b)} @$group;
+    if (@$group<=$prefixmatch_cutoff) {
+      # brute force
+      my %rows=map {$_=>$rows[$_]} (0..$#rows);
+	for (my $i=0; $i<@rows-1; $i++) {
+	  next unless $rows{$i};
+	  for (my $j=$i+1; $j<@rows; $j++) {
+	    next unless $rows{$j};
+	    delete $rows{$j} if pdup($rows[$i],$rows[$j],$skip0);
+	  }}
+      push(@$output,values %rows);
+    } else {
+      # use prefix matching
+      if (@matchers) {
+       map {$_->reset} @matchers;
+     } else {
+       # optimize trivial matchers - if path of length 1, use exact hash 
+       @matchers=map {@$_==1? new $exact_class: new $matcher_class} @path_idxs;
+     }
+      my $row_idx=0;
+      for my $row (@rows) {
+	my @subrows=map {my @idxs=@{$_}; [@$row[@idxs]]} @path_idxs;
+	my $new=0;			# assume it's an old row - not pdup
+	my @subhits;
+	for (my $j=0; $j<@paths; $j++) {
+	  my $subrow=$subrows[$j];
+	  next if none {defined $_} @$subrow; # all NULL - wildcard - matches everything
+	  my $matcher=$matchers[$j];
+	  my $subhits=$matcher->get_data($subrow); # returns ARRAY of rowidxs
+	  push(@subhits,$subhits);
+	}
+	# compute intersection of subhits
+	my @hits=intersect(@subhits);
+	unless (@hits) {
+	  # it's a new row!
+	  push(@$output,$row);	# add to output
+	  # add to matchers
+	  for (my $j=0; $j<@paths; $j++) {
+	    my $subrow=$subrows[$j];
+	    my $matcher=$matchers[$j];
+	    $matcher->put_data($subrow,$row_idx);
+	  }}
+	$row_idx++;
+      }}} 
+  $output;
 }
 # calculate number of undefs in row
 sub num_undefs {scalar grep {!defined $_} @{$_[0]}}
+# row $j is partial-dup of $i if they agree wherever both defined, else $j is undef
+# $skip0 is 1 if $input grouped, else 0
+sub pdup {
+  my($rowi,$rowj,$skip0)=@_;
+  for(my $k=$skip0; $k<=@$rowi; $k++) {
+    return 0 if defined $rowj->[$k] && $rowi->[$k] ne $rowj->[$k];
+  }
+  1;
+}
+sub pdups_prefixmatcher_class {
+  my $self=shift;
+  if (@_) {
+    my $subclass=shift;
+    my $class='Data::Babel::PrefixMatcher::'.$subclass;
+    unless (eval "require $class") {
+      confess "BAD NEWS: PrefixMatcher subclass Trie not found: $@" if $subclass eq 'Trie';
+      carp "PrefixMatcher subclass $subclass not found. Falling back to Trie: $@";
+      $class='Data::Babel::PrefixMatcher::Trie';
+    }
+    $self->{pdups_prefixmatcher_class}=$class;
+  }
+  $self->{pdups_prefixmatcher_class};
+}
 
 ########################################
 
@@ -1024,7 +1095,7 @@ MapTable
 
 This excerpt has two MapTable definitions which illustrate two ways
 that MapTables can be named.  The first uses a normal section name;
-the second invokes a L<Template Toolkit|Template> macro which generates unique
+the second invokes a L<Template::Toolkit> macro which generates unique
 names of the form 'maptable_001'.  This is very convenient because
 Babel databases typically contain a large number of MapTables, and
 it's hard to come up with good names for most of them.  In any case,
@@ -1069,17 +1140,19 @@ input list with duplicates removed.
 
 A partial duplicate is a row that contains less information than
 another row and is therefore redundant.  More precisely, a row is a
-partial duplicate of another row if for all fields, (1) the rows are
-identical or, (2) the partial duplicate is NULL.  In the example below,
-the second row is a partial duplicate of the first.
+partial duplicate of another row if for all fields (1) the rows are
+identical or, (2) the field in the partial duplicate is NULL.  In the
+example below, the second row is a partial duplicate of the first.
 
  gene_symbol  organism_name  gene_entrez  probe_id
  HTT          human          3064         A_23_P212749
  HTT          human          3064
 
-By default, 'translate' removes partial duplicates. If for some reason
-you want to keep them, you can specify the 'keep_pdups' option to
-'translate'.
+By default, 'translate' removes partial duplicates. The algorithm for
+removing partial duplicates may be slow for queries with a large
+number of output columns in cases where a given input id matches a
+large number of output ids. To retain partial duplicates, you can
+specify the 'keep_pdups' option to 'translate'.
 
 =head2 Technical details
 
@@ -1355,7 +1428,7 @@ can contain rows in which the output id does not match the filter.
  Returns : number
  Args    : same as 'translate'
 
-'count' is a wrapper for L<translate> that sets the 'count' argument to a true value.
+'count' is a wrapper for L<"translate"> that sets the 'count' argument to a true value.
 
 =head2 validate
 
@@ -1374,19 +1447,7 @@ can contain rows in which the output id does not match the filter.
                 be the same as the original id
            If output_idtypes is set, the result is ther same as 'translate' with
            the 'validate' option set
- Args    : input_idtype   name of Data::Babel::IdType object or object
-           input_ids      id or ARRAY of ids to be translated. If absent or
-                          undef, all ids of the input type are translated. If an
-                          empty array, ie, [], no ids are translated and the 
-                          result will be empty.
-           input_ids_all  boolean. If true, all ids of the input type are
-                          translated. Same as omitting input_ids or setting it
-                          to undef but more explicit.
-           output_idtypes optional and usually omitted. ARRAY of names of 
-                          Data::Babel::IdType objects or objects. If set,
-                          equivalent to calling 'translate' with the 'validate'
-                          option set
-           limit          maximum number of rows to retrieve
+ Args    : same as 'translate'
 
 'validate' looks up the given input ids in the Master tables for the
 given input type and returns a table indicating which ids are
@@ -1397,10 +1458,11 @@ the current value will always equal the given id if the id is valid.
 'validate' can also retrieve a complete table of valid ids (along with
 history information) for the type.
 
-'validate' is a wrapper for L<translate> that sets the 'validate'
-argument to a true value and the output_idtypes argument to the
-input_idtype.  All other 'translate' arguments (filters, count) are
-legal here and work but are of dubious value.
+'validate' is a wrapper for L<"translate"> that (1) sets the 'validate'
+argument to a true value and (2) sets the output_idtypes argument to
+the input_idtype unless the user explicitly set it.  All other
+'translate' arguments (filters, count) are legal here and work but are
+of dubious value.
 
 =head3 Notes on validate
 

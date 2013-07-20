@@ -16,7 +16,7 @@ init();
 # Note that for some cases, outputs will contain input
 # For each case, test range of input ids, input_ids=>undef
 #                test w/o limit and with limits if set
-#                test w/ count or validate if options set
+#                test w/ count or validate 0r keep_pdups if options set
 #                test w/ duplicate outputs
 my($input_ids,$invalid_ids,$num_input_ids,$num_invalid_ids);
 for my $input_idtype (@idtypes) {
@@ -45,6 +45,7 @@ sub doit {
   my @args=(input_idtype=>$input,input_ids=>$input_ids,output_idtypes=>$outputs);
   push(@args,count=>1) if $OPTIONS->count;
   push(@args,validate=>1) if $OPTIONS->validate;
+  push(@args,keep_pdups=>1) if $OPTIONS->keep_pdups;
   my $op=$OPTIONS->count? 'count': 'translate'; # for cmp_op
   my $limit=$OPTIONS->limit;
   my($min_limit,$max_limit)=@$limit if defined $limit;

@@ -24,12 +24,5 @@ $babel->load_implicit_masters;
 load_ur($babel,'ur');
 check_database_sanity();
 
-if ($OPTIONS->standard) {
-  # for standard handcrafted dbs, test component-object attributes
-  check_handcrafted_idtypes($babel->idtypes,'mature','sanity test - Babel attribute: idtypes');
-  check_handcrafted_masters($babel->masters,'mature','sanity test - Babel attribute: masters');
-  check_handcrafted_maptables($babel->maptables,'mature',
-			      'sanity test - Babel attribute: maptables');
-}
 done_testing();
 

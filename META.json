@@ -74,7 +74,7 @@
    "provides" : {
       "Data::Babel" : {
          "file" : "lib/Data/Babel.pm",
-         "version" : "1.12_02"
+         "version" : "1.12_03"
       },
       "Data::Babel::Base" : {
          "file" : "lib/Data/Babel/Base.pm",
@@ -111,6 +111,26 @@
       "Data::Babel::PrefixMatcher" : {
          "file" : "lib/Data/Babel/PrefixMatcher.pm",
          "version" : 0
+      },
+      "Data::Babel::PrefixMatcher::BinarySearchList" : {
+         "file" : "lib/Data/Babel/PrefixMatcher/BinarySearchList.pm",
+         "version" : 0
+      },
+      "Data::Babel::PrefixMatcher::BinarySearchTree" : {
+         "file" : "lib/Data/Babel/PrefixMatcher/BinarySearchTree.pm",
+         "version" : 0
+      },
+      "Data::Babel::PrefixMatcher::Exact" : {
+         "file" : "lib/Data/Babel/PrefixMatcher/Exact.pm",
+         "version" : 0
+      },
+      "Data::Babel::PrefixMatcher::PrefixHash" : {
+         "file" : "lib/Data/Babel/PrefixMatcher/PrefixHash.pm",
+         "version" : 0
+      },
+      "Data::Babel::PrefixMatcher::Trie" : {
+         "file" : "lib/Data/Babel/PrefixMatcher/Trie.pm",
+         "version" : 0
       }
    },
    "release_status" : "testing",
@@ -119,5 +139,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.12_02"
+   "version" : "1.12_03"
 }

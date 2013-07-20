@@ -12,7 +12,7 @@ use strict;
 init();
 
 # For each case, test input_ids=>undef
-#                test w/ count or validate if options set
+#                test w/ count or validate or keep_pdups if options set
 # note that for some cases, outputs will contain input
 for my $input_idtype (@idtypes) {
   my $input=$input_idtype->name;
@@ -31,6 +31,7 @@ sub doit {
   my @args_base=(input_idtype=>$input,output_idtypes=>$outputs);
   push(@args_base,count=>1) if $OPTIONS->count;
   push(@args_base,validate=>1) if $OPTIONS->validate;
+  push(@args_base,keep_pdups=>1) if $OPTIONS->keep_pdups;
   my $op=$OPTIONS->count? 'count': 'translate'; # for cmp_op
   my $limit=$OPTIONS->limit;
   my($min_limit,$max_limit)=@$limit if defined $limit;

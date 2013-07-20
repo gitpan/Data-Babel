@@ -1,4 +1,4 @@
-package Data::Babel::PrefixMatcher;
+package Data::Babel::PrefixMatcher::Exact;
 #################################################################################
 #
 # Author:  Nat Goodman
@@ -16,32 +16,43 @@ package Data::Babel::PrefixMatcher;
 #################################################################################
 # a Prefix Matcher is able to store rows (arrays of values) and tell whether a new
 #   row is a prefix of one already in the structure
-# ASSUMES undef fields come at the end!! this is what makes prefix idea work...
+# for special case of paths of length 1. ASSUMES undef values caught earlier
+# for this case, can use exact match HAH::MultiValued
 #   values are row indexes - code will work for ARRAY of anything
-# 
-# this is base class for implementations
 use strict;
 use Carp;
+use Hash::AutoHash::MultiValued qw(autohash_clear);
+use List::MoreUtils qw(uniq);
 use vars qw(@AUTO_ATTRIBUTES);
-use base qw(Class::AutoClass);
-@AUTO_ATTRIBUTES=qw();
+use base qw(Data::Babel::PrefixMatcher);
+@AUTO_ATTRIBUTES=qw(matcher);
 Class::AutoClass::declare;
 
+sub _init_self {
+  my($self,$class,$args)=@_;
+  return unless $class eq __PACKAGE__; # to prevent subclasses from re-running this
+  $self->matcher(new Hash::AutoHash::MultiValued);
+}
 # reset matcher so it can be used on another group
+# clear AutoHash
 sub reset {
   my $self=shift;
-  confess "reset method called on base class. should call on subclass";
+  autohash_clear($self->matcher);
 }
 # data is row index
 sub put_data {
   my($self,$row,$data)=@_;
-  confess "put_data method called on base class. should call on subclass";
+  my $matcher=$self->matcher;
+  my($key)=@$row;
+  $matcher->$key($data);	# Hash::AutoHash::MultiValued does the right thing
 }
-# returns list of data values (row indexes) associated with row (exact or prefix)
+# returns list of data values (row indexes) associated with row
 sub get_data {
   my($self,$row)=@_;
-  confess "get_data method called on base class. should call on subclass";
-  my @data;
+  my $matcher=$self->matcher;
+  my($key)=@$row;
+  my @data=$matcher->$key;
+  @data=uniq @data;
   wantarray? @data: \@data;
 }
 

@@ -4,7 +4,7 @@ use Carp;
 use Test::More;
 use Test::Deep qw(cmp_details deep_diag subbagof);
 use List::Util qw(first min);
-use List::MoreUtils qw(uniq);
+use List::MoreUtils qw(uniq any);
 use Hash::AutoHash::Args;
 # use Hash::AutoHash::MultiValued;
 use Exporter();
@@ -13,7 +13,7 @@ our @ISA=qw(Exporter);
 
 our @EXPORT=
   (@t::util::EXPORT,
-   qw(check_object_basics sort_objects power_subsets vary_case 
+   qw(check_object_basics sort_objects power_subsets cross_product vary_case uniq_rows
       prep_tabledata load_maptable load_master load_ur select_ur select_ur_sanity cleanup_db
       check_database_sanity check_maptables_sanity check_masters_sanity 
       check_handcrafted_idtypes check_handcrafted_masters check_handcrafted_maptables
@@ -25,7 +25,7 @@ our @EXPORT=
       pnames pgraph
     ));
 # NG 13-07-16: not used now but keep for future
-push(@EXPORT,qw(uniq_rows grep_rows sort_rows check_table 
+push(@EXPORT,qw(grep_rows sort_rows check_table 
 		cmp_objects cmp_objects_quietly order_tables));
 # NG 13-07-16: used internally
 #              filter_ur count_ur cleanup_ur
@@ -99,6 +99,34 @@ sub _power_subsets {
        (scalar(@$_)+1+$i>=$min? [$i,@$_]: ()))} @recurse;
 
   @out;
+}
+# NG 13-07-20: cartesion product of a list of vectors (ARRAYs)
+# arguments are either ARRAY refs or integers
+#   if integer, it's universe size; universe is 0..$size-1
+#   if ARRAY, it's universe
+sub cross_product {
+  my @out;
+  if (any {ref $_} @_) {
+    my @sets=@_;
+    my @sizes=map {ref $_? scalar(@$_): $_} @sets;
+    my @idx_rows=_cross_product(@sizes);
+    for my $idx_row (@idx_rows)  {
+      my @row=map
+	{my $idx=$idx_row->[$_]; ref $sets[$_]? $sets[$_]->[$idx]: $idx;} 0..@sets-1;
+      push(@out,\@row);
+    }
+  } else {
+    @out=_cross_product(@_);
+  }
+  wantarray? @out: \@out;
+}
+sub _cross_product {
+  my @sizes=@_;
+  return unless @sizes;
+  my $size=shift @sizes;
+  return map {[$_]} 0..$size-1 unless @sizes;
+  my @recurse=_cross_product(@sizes);
+  map {my $i=$_; map {[$i,@$_]} @recurse} 0..$size-1;
 }
 
 # NG 13-06-15: added vary_case to test case insensitve comparisons
@@ -347,32 +375,14 @@ sub select_ur {
     # NG 13-06-15: added '||0' for case insensitive comparisons
     push(@$table,map {[$_,$id2valid{$_}||0,(undef)x@$output_idtypes]} @missing_ids);
   }
-
-  ########################################
-  # # NG 13-06-11: emit pseudo-dups diagnostics as prelude to creating tests
-  # #              more diagnostics below for same reason
-  # my %groups=group {$_->[0]} @$table;
-  #  my $pseudo_dups=0;
-
-  # for my $group (values %groups) {
-  #   my @rows=sort {undefs($a)<=>undefs($b)} @$group;
-  #   my %rows=map {$_=>$rows[$_]} (0..$#rows);
-  #   for(my $i=0; $i<@rows-1; $i++) {
-  #     next unless $rows{$i};
-  #     for(my $j=$i+1; $j<@rows; $j++) {
-  # 	next unless $rows{$j};
-  # 	delete $rows{$j}, $pseudo_dups++ if pseudo_dup($rows[$i],$rows[$j]);
-  #     }
-  #   }
-  # }
-  # diag('+++ select_ur pseudo_dups='.$pseudo_dups);
-  ########################################
-  # $table;
-
-  remove_pdups($table);
+  # NG 13-07-15: remove partial duplicates
+  $table=remove_pdups($table) unless $args->keep_pdups;
+  $table;
 }
+
 sub remove_pdups {
   my $table=shift;
+
   my %groups=group {$_->[0]} @$table;
   my $pseudo_dups=0;
   $table=[];
@@ -393,6 +403,7 @@ sub remove_pdups {
   # TODO: put this under some sort of flag...
   # diag('+++ select_ur pseudo_dups='.$pseudo_dups) if $pseudo_dups;
   # diag('+++ select_ur pseudo_dups='.$pseudo_dups);
+
   $table;
 }
 # used to sort by number of undefs
@@ -438,12 +449,13 @@ sub uniq_rows {
   # NG 13-06-10: added 'lc' for case insensitive comparisons
   my @row_strings=map {lc join($;,@$_)} @$rows;
   my %seen;
-  my $uniq_rows=[];
+  my @uniq_rows;
   for(my $i=0; $i<@$rows; $i++) {
     my $row_string=$row_strings[$i];
-    push(@$uniq_rows,$rows->[$i]) unless $seen{$row_string}++;
+    push(@uniq_rows,$rows->[$i]) unless $seen{$row_string}++;
   }
-  $uniq_rows;
+  # $uniq_rows;
+  wantarray? @uniq_rows: \@uniq_rows;
 }
 # NG 13-06-21: moved from 050/translate.pm and renamed from grep_table
 sub grep_rows {

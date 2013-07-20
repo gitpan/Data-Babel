@@ -50,6 +50,8 @@ our($OPTIONS,%OPTIONS,@OPTIONS,$autodb,$babel,$dbh,
 # 
 # count causes 'count' option to be added to translate
 # validate causes 'validate' option to be added to translate
+# keep_pdups causes 'keep_pdups' option to be added to translate
+#
 # filter set automatically - controls calculation of @filter_subsets
 # num_invalid_ids added to input_ids
 # num_input_ids, num_invalid_ids, num_outputs, num_filters specify min,max, eg '1,5'
@@ -68,13 +70,19 @@ our($OPTIONS,%OPTIONS,@OPTIONS,$autodb,$babel,$dbh,
 # filter_none - include filter that matches nothing
 # filter_all - include filter that matches everything
 # filter_undef - add undef to each filter
+#
+# options controlling pdups removal algorithm - see Babel.pm for definitions
+# pdups_group_cutoff
+# pdups_prefixmatcher_cutoff
+# pdups_prefixmatcher_class
 
 @OPTIONS=qw(explicit=i history=i extra_ids=i extra_idtypes=s pdups=i
 	    db_type=s graph_type=s link_type=s basecalc=i num_maptables=i arity=i
-	    count validate 
+	    count validate keep_pdups
 	    filter filter_none filter_all filter_undef
 	    num_input_ids=s num_invalid_ids=s num_outputs=s num_filters=s
-	    input_ids_all);
+	    input_ids_all
+	    pdups_group_cutoff=i pdups_prefixmatcher_cutoff=i pdups_prefixmatcher_class=s);
 our %db_type=abbrev qw(binary staggered basecalc);
 our %graph_type=abbrev qw(star chain tree);
 our %link_type=abbrev qw(starlike chainlike);
@@ -107,6 +115,14 @@ sub init {
     # @idtype_subsets=sort_name_lists(map {[$_->members]} $power_set->members);
     @filter_subsets=idtype_subsets('num_filters','link') if $OPTIONS{filter};
     @output_subsets=idtype_subsets('num_outputs','leaf');
+    # set pdups removal options if necessary
+    my($pdups_group_cutoff,$pdups_prefixmatcher_cutoff,$pdups_prefixmatcher_class)=
+      @$OPTIONS{qw(pdups_group_cutoff pdups_prefixmatcher_cutoff pdups_prefixmatcher_class)};
+    $babel->pdups_group_cutoff($pdups_group_cutoff) if defined $pdups_group_cutoff;
+    $babel->pdups_prefixmatcher_cutoff($pdups_prefixmatcher_cutoff) 
+      if defined $pdups_prefixmatcher_cutoff;
+    $babel->pdups_prefixmatcher_class($pdups_prefixmatcher_class) 
+      if defined $pdups_prefixmatcher_class;
   } else {			# setup new database
     cleanup_db($autodb);		# cleanup database from previous test
     Data::Babel->autodb($autodb);
@@ -243,8 +259,10 @@ sub doit {
   $filters={} unless defined $filters;
   my $ok=1;
   my @filter_names=keys %$filters;
-  my @args=(input_idtype=>$input_name,filters=>$filters,output_idtypes=>$output_names,
-	    count=>$OPTIONS->count,validate=>$OPTIONS->validate);
+  my @args=(input_idtype=>$input_name,filters=>$filters,output_idtypes=>$output_names);
+  push(@args,count=>1) if $OPTIONS->count;
+  push(@args,validate=>1) if $OPTIONS->validate;
+  push(@args,keep_pdups=>1) if $OPTIONS->keep_pdups;
   my $label;
   if ($input_ids ne 'all') {
     push(@args,input_ids=>$input_ids);

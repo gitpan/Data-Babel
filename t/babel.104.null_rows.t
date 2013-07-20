@@ -21,7 +21,9 @@ isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
 cleanup_db($autodb);		# cleanup database from previous test
 Data::Babel->autodb($autodb);
 my $dbh=$autodb->dbh;
-my $confpath=File::Spec->catfile(scriptpath,scriptbasename.'.dir');
+# NG 13-07-20: now works to have subdir with same name as test
+# my $confpath=File::Spec->catfile(scriptpath,scriptbasename.'.dir');
+my $confpath=File::Spec->catfile(scriptpath,scriptbasename);
 
 # make component objects and Babel. note that $masters is for EXPLICIT masters only
 my $idtypes=new Data::Babel::Config
