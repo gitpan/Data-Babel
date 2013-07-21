@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.12_03';
+our $VERSION='1.12_04';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -903,14 +903,14 @@ contain multiple Data::Babel objects; these may share some or all
 identifier types, and may provide the same or different mappings over
 the shared types.
 
-The principal method is 'translate' which converts identifiers of one
-type into identifiers of one or more output types.  In typical usage,
-you call 'translate' with a list of input ids to convert.  You can
-also call it without any input ids (or with the special option
+The principal method is L<"translate"> which converts identifiers of
+one type into identifiers of one or more output types.  In typical
+usage, you call L<"translate"> with a list of input ids to convert.
+You can also call it without any input ids (or with the special option
 'input_ids_all' set) to generate a complete mapping of the input type
 to the output types.  This is convenient if you want to hang onto the
 mapping for repeated use.  You can also filter the output based on
-values of other identifier types.  
+values of other identifier types.
 
 Comparisons are done in a B<case insensitive> manner.  This includes
 input ids, filters, and internal comparisons used to join database
@@ -959,9 +959,9 @@ histories). The query or program that loads the database is
 responsible for mapping old identifiers to current ones (presumably
 via the history).
 
-'translate' checks the input IdType to see if its Master has history
-information. If so, 'translate' automatically applies the history to
-all input ids.  It does the same for filters.
+L<"translate"> checks the input IdType to see if its Master has
+history information. If so, L<"translate"> automatically applies the
+history to all input ids.  It does the same for filters.
 
 You need not explicitly define Masters for all IdTypes; Babel
 will create 'implicit' Masters for any IdTypes lacking explicit
@@ -1107,10 +1107,10 @@ construction procedure and may not be useful in other settings.
 
 =head2 Input ids that do not connect to any outputs
 
-By default, the 'translate' method does not return any output for
+By default, the L<"translate"> method does not return any output for
 input identifiers that do not connect to any identifiers of the
 desired output types; these are output rows in which the output
-columns are all NULL. You can instruct 'translate' to include these
+columns are all NULL. You can instruct L<"translate"> to include these
 rows in the result by setting the 'validate' option.
 
 An input identifier can fail to connect for two reasons: 
@@ -1129,7 +1129,7 @@ If you set the 'validate' option, the output will contain at least one
 row for each input identifier, and an additional column that indicates
 whether each input identifier is valid.
 
-If no output IdTypes are specified, 'translate' returns a row
+If no output IdTypes are specified, L<"translate"> returns a row
 containing one element, namely, the input identifier, for each input
 id that exists in the corresponding Master table. If the 'validate'
 option is set, the output will contain one row for each input
@@ -1148,11 +1148,11 @@ example below, the second row is a partial duplicate of the first.
  HTT          human          3064         A_23_P212749
  HTT          human          3064
 
-By default, 'translate' removes partial duplicates. The algorithm for
-removing partial duplicates may be slow for queries with a large
+By default, L<"translate"> removes partial duplicates. The algorithm
+for removing partial duplicates may be slow for queries with a large
 number of output columns in cases where a given input id matches a
 large number of output ids. To retain partial duplicates, you can
-specify the 'keep_pdups' option to 'translate'.
+specify the 'keep_pdups' option to L<"translate">.
 
 =head2 Technical details
 
@@ -1165,13 +1165,13 @@ everything that was in the original answer.
 
 We accomplish this by requiring that the database of MapTables satisfy
 the B<universal relation property> (a well-known concept in relational
-database theory), and that 'translate' retrieves a sub-table of the
+database theory), and that L<"translate"> retrieves a sub-table of the
 universal relational.  Concretely, the universal relational is the
-natural full outer join of all the MapTables.  'translate' performs
+natural full outer join of all the MapTables. L<"translate"> performs
 natural left out joins starting with the Master table for the input
 IdType, and then including enough tables to connect the input and
-output IdTypes. Left outer joins suffice, because 'translate' starts
-with the Master.
+output IdTypes. Left outer joins suffice, because L<"translate">
+starts with the Master.
 
 We further require that the database of MapTables be
 non-redundant. The basic idea is that a given IdType may not be
@@ -1187,7 +1187,7 @@ undirected graph whose nodes represent IdTypes and MapTables, and
 whose edges go between each MapTable and the IdTypes it contains. In
 this representation, a non-redundant schema is a tree.
 
-'translate' uses this graph to find the MapTables it must join to
+L<"translate"> uses this graph to find the MapTables it must join to
 connect the input and output IdTypes. The algorithms is simple: start
 at the leaves and recursively prune back branches that do not contain
 the input or output IdTypes.
@@ -1405,7 +1405,7 @@ only value for a filter type or whether it's one of several.
 
 =head3 Histories
 
-'translate' automatically applies histories, when they exist, to input
+L<"translate"> automatically applies histories, when they exist, to input
 and filter ids. In other words, input and filter ids can be ones that
 were valid in the past but are not valid now. Output ids, however, are
 always current.
@@ -1458,11 +1458,11 @@ the current value will always equal the given id if the id is valid.
 'validate' can also retrieve a complete table of valid ids (along with
 history information) for the type.
 
-'validate' is a wrapper for L<"translate"> that (1) sets the 'validate'
-argument to a true value and (2) sets the output_idtypes argument to
-the input_idtype unless the user explicitly set it.  All other
-'translate' arguments (filters, count) are legal here and work but are
-of dubious value.
+'validate' is a wrapper for L<"translate"> that (1) sets the
+'validate' argument to a true value and (2) sets the output_idtypes
+argument to the input_idtype unless the user explicitly set it.  All
+other L<"translate"> arguments (filters, count) are legal here and
+work but are of dubious value.
 
 =head3 Notes on validate
 

@@ -1,5 +1,12 @@
 Revision history for Data-Babel
 
+1.12_04	 2013-07-21
+	 RC2
+	 Build fixes
+	 - Added Tree::Trie to dependencies. Thanks to CPAN testers
+           for finding this!
+	 - Updated all dependencies
+
 1.12_03	 2013-07-20
 	 RC1
 	 New features
