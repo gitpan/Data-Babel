@@ -28,6 +28,7 @@ t/babel.000.code_exists.t
 t/babel.001.boilerplate.t
 t/babel.002.pod.t
 t/babel.003.manifest.t
+t/babel.005.check_mysql.t
 t/babel.009.util.t
 t/babel.010.basics.t
 t/babel.012.internal_idtype.t
@@ -106,8 +107,6 @@ t/babel.115.pdups/pdups.maptable_syn.ini
 t/babel.115.pdups/pdups.maptable_wide.ini
 t/babel.115.pdups/pdups.master_htt.ini
 t/babel.115.pdups/pdups.master_syn.ini
-t/brain_genes.edit.txt
-t/brain_genes.txt
 t/Build.pm
 t/handcrafted.data.ini
 t/handcrafted.idtype.ini

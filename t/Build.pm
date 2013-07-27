@@ -47,6 +47,12 @@ sub run_tap_harness {
       }}
     $harness->aggregate_tests($agg,[$test.$testargs,"$testnum $test"]);
     # push(@testfiles,[$test.$testargs,"$testnum $test"]);
+    # NG 13-07-27: handle 'pragma +stop_testing'
+    #              used at present to signal that MySQL not available
+    my @parsers=$agg->parsers;
+    my $parser=$parsers[$#parsers];
+    my @pragmas=$parser->pragmas;
+    last if grep /stop_testing/i,@pragmas;
   }
   # $harness->runtests(@testfiles);
   $agg->stop();

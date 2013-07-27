@@ -1,5 +1,14 @@
 Revision history for Data-Babel
 
+1.12_05	 2013-07-27
+	 RC3
+	 Build fixes
+	 - Finally trying to fix the longstanding issue that my scheme for
+	   telling CPAN that it's futile to run the tests - namely having 
+	   Build.PL return 0 and not build the Build script - apparently is not
+	   the accepted idiom despite being recommended on some Perl guru site.
+	   It may take a few tries to get it right...
+
 1.12_04	 2013-07-21
 	 RC2
 	 Build fixes
@@ -51,7 +60,7 @@ Revision history for Data-Babel
 	Bug fixes
 	- 'translate' with empty input_ids. was generating illegal SQL, now
 	  returns empty table
-	- examples/babel.pl used deprecated qw(...) as parentheses.  should have
+	- examples/babel.pl used deprecated qw(...) as parentheses. should have
 	  been fixed in 1.02.  sorry	
 	- 'translate' with empty input_ids would sometimes return NULL id
 	- lingering bug in 098.example. test was calling example script with

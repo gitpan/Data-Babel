@@ -44,7 +44,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.12_04
+    version: 1.12_05
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -87,12 +87,16 @@ provides:
   Data::Babel::PrefixMatcher::Trie:
     file: lib/Data/Babel/PrefixMatcher/Trie.pm
     version: 0
+recommends:
+  List::BinarySearch: 0.11
+  Tree::RB: 0.500003
 requires:
   Carp: 1.2
   Class::AutoClass: 1.55
   Class::AutoDB: 1.26
   Class::Singleton: 1.4
   Config::IniFiles: 2.77
+  DBD::mysql: 4.022
   DBI: 1.621
   File::Basename: 0
   File::Spec: 3.33
@@ -106,4 +110,4 @@ requires:
   Tree::Trie: 1.9
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.12_04
+version: 1.12_05
