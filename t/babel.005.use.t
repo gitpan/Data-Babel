@@ -1,7 +1,7 @@
 #!perl
 use strict;
-use Test::More tests => 13;
-# make sure all the necesary modules exist
+use Test::More tests => 11;
+# make sure all modules can be used
 BEGIN {
     use_ok( 'Data::Babel' );
     use_ok( 'Data::Babel::Base' );
@@ -11,9 +11,9 @@ BEGIN {
     use_ok( 'Data::Babel::MapTable' );
     use_ok( 'Data::Babel::HAH_MultiValued' );
     use_ok( 'Data::Babel::PrefixMatcher' );
-    for my $subclass (qw(BinarySearchList BinarySearchTree Exact PrefixHash Trie)) {
+    # don't check BinarySearchList, BinarySearchTree: optional (recommended) preres
+    for my $subclass (qw(Exact PrefixHash Trie)) {
       use_ok( "Data::Babel::PrefixMatcher::$subclass" );
     }
   }
-diag( "Testing Data::Babel $Data::Babel::VERSION, Perl $], $^X" );
 done_testing();

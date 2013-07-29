@@ -1,5 +1,23 @@
 Revision history for Data-Babel
 
+1.12_06	 2013-07-28
+	 RC4
+	 Build fixes
+	 - Continuing the saga of learning how to tell CPAN that it's futile to 
+	   run the tests. Changed 'check_mysql.t' to 'reqs.t' and added checks
+	   for Class::AutoDB and DBD::mysql. For some reason, test driver does 
+	   not always ensure these guys exist, even though they are in 
+	   'build_requires'. It may take a few more tries to get it right...
+	 - Added DBD::mysql to prereqs. Didn't do it earlier because last time I
+	   tried, if not present, install tried to install 'DBD' which does not
+	   exist.  Let's see if it works this time.
+	 Test changes
+	 - Changed 'codee_exists.t' to 'use.t' and moved it down to 005
+	 - Moved 'reqs.t' up to 000 so we'll check requirements and stop testing
+	   if futile to run tests
+	 - Generalized 000.reqs and 001.boilerplate to get module info from
+	   builder. 002.pod, 003.manifest already were doing this
+	 
 1.12_05	 2013-07-27
 	 RC3
 	 Build fixes
@@ -8,6 +26,8 @@ Revision history for Data-Babel
 	   Build.PL return 0 and not build the Build script - apparently is not
 	   the accepted idiom despite being recommended on some Perl guru site.
 	   It may take a few tries to get it right...
+	   First try: move check to test script (babel.005.check_mysql.t) and
+	   have customized Build::run_tap_harness end test suite if futile	   
 
 1.12_04	 2013-07-21
 	 RC2

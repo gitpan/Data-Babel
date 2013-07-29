@@ -36,7 +36,10 @@ sub module_boilerplate_ok {
     );
 }
 
-
+# NG 13-07-29: use this code from 002.pod to avoid need to hardcode module
+use t::Build;
+my $builder=t::Build->current;
+my $module_pm=File::Spec->catdir('blib',$builder->dist_version_from);
 
   not_in_file_ok(README =>
     "The README is used..."       => qr/The README is used/,
@@ -47,7 +50,8 @@ sub module_boilerplate_ok {
     "placeholder date/time"       => qr(Date/time)
   );
 
-  module_boilerplate_ok('lib/Data/Babel.pm');
+# module_boilerplate_ok('lib/Data/Babel.pm');
+module_boilerplate_ok($module_pm);
 
 done_testing();
 

@@ -9,6 +9,7 @@ build_requires:
   Class::AutoDB: 1.26
   Config::IniFiles: 2.57
   Cwd: 3.26
+  DBD::mysql: 4.022
   DBI: 1.604
   Exporter: 5.65
   File::Basename: 0
@@ -29,6 +30,7 @@ build_requires:
   TAP::Harness: 3.23
   Test::Deep: 0.11
   Test::More: 0.98
+  Test::mysqld: 0.15
   Text::Abbrev: 1.01
   Tie::ToObject: 0.03
 configure_requires:
@@ -44,7 +46,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.12_05
+    version: 1.12_06
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -110,4 +112,4 @@ requires:
   Tree::Trie: 1.9
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.12_05
+version: 1.12_06

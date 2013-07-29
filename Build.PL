@@ -7,6 +7,10 @@ use lib qw(t);
 use t::Build;			# my Module::Build subclass
 my $class='t::Build';
 
+# CAUTION: may not work to have DBD::mysql in prereqs. 
+#  in past, saw bug where if DBD::mysq not present, install tries to install 'DBD'
+#  which does not exist
+
 my $builder = $class->new
   (module_name         => 'Data::Babel',
    license             => 'perl',
@@ -20,6 +24,7 @@ my $builder = $class->new
 			'Class::AutoDB' => 1.26,
 			'Config::IniFiles' => 2.57,
 			'Cwd' => 3.26,
+                        'DBD::mysql'=> 4.022,
 			'DBI' => 1.604,
 			'Exporter' => 5.65,
 			'File::Basename' => 0,
@@ -40,6 +45,7 @@ my $builder = $class->new
 			'TAP::Harness' => 3.23,
 			'Test::Deep' =>  0.11,
 			'Test::More' => 0.98,
+			'Test::mysqld' => 0.15,
 			'Text::Abbrev' => 1.01,
 			'Tie::ToObject' => 0.03,
 		       },

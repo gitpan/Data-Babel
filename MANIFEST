@@ -24,11 +24,11 @@ MANIFEST			This list of files
 META.json
 META.yml
 README
-t/babel.000.code_exists.t
+t/babel.000.reqs.t
 t/babel.001.boilerplate.t
 t/babel.002.pod.t
 t/babel.003.manifest.t
-t/babel.005.check_mysql.t
+t/babel.005.use.t
 t/babel.009.util.t
 t/babel.010.basics.t
 t/babel.012.internal_idtype.t
