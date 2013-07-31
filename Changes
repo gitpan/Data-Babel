@@ -1,57 +1,18 @@
 Revision history for Data-Babel
 
-1.12_06	 2013-07-28
-	 RC4
-	 Build fixes
-	 - Continuing the saga of learning how to tell CPAN that it's futile to 
-	   run the tests. Changed 'check_mysql.t' to 'reqs.t' and added checks
-	   for Class::AutoDB and DBD::mysql. For some reason, test driver does 
-	   not always ensure these guys exist, even though they are in 
-	   'build_requires'. It may take a few more tries to get it right...
-	 - Added DBD::mysql to prereqs. Didn't do it earlier because last time I
-	   tried, if not present, install tried to install 'DBD' which does not
-	   exist.  Let's see if it works this time.
-	 Test changes
-	 - Changed 'codee_exists.t' to 'use.t' and moved it down to 005
-	 - Moved 'reqs.t' up to 000 so we'll check requirements and stop testing
-	   if futile to run tests
-	 - Generalized 000.reqs and 001.boilerplate to get module info from
-	   builder. 002.pod, 003.manifest already were doing this
-	 
-1.12_05	 2013-07-27
-	 RC3
-	 Build fixes
-	 - Finally trying to fix the longstanding issue that my scheme for
-	   telling CPAN that it's futile to run the tests - namely having 
-	   Build.PL return 0 and not build the Build script - apparently is not
-	   the accepted idiom despite being recommended on some Perl guru site.
-	   It may take a few tries to get it right...
-	   First try: move check to test script (babel.005.check_mysql.t) and
-	   have customized Build::run_tap_harness end test suite if futile	   
-
-1.12_04	 2013-07-21
-	 RC2
-	 Build fixes
-	 - Added Tree::Trie to dependencies. Thanks to CPAN testers
-           for finding this!
-	 - Updated all dependencies
-
-1.12_03	 2013-07-20
-	 RC1
-	 New features
-	 - Complete implementation of partial duplicate removal
-	 - keep_pdups 'translate' option
-	 Further test clean up
-
-1.12_02	 2013-07-16
-	 Clean up tests to improve install speed
-
-1.12_01	 2013-07-10
+1.12    2013-07-31
 	Bug fixes
-	- Fixed partial duplicates bug in which translate returned rows
-	  that were identical on all non-null columns, differing only
-	  in that one row had nulls where the other had a real value
-	- This release has initial implementation using prefix hash
+	- Fixed partial duplicates bug in which translate returned rows that 
+	  were identical on all non-null columns, differing only in that one row
+	  had nulls where the other had a real value
+	Test changes
+	- Cleaned up tests to improve CPAN install speed
+	- Changed the scheme for telling CPAN that it's futile to run the tests
+	  because MySQL is not accessible. I now check key requirements in a 
+	  test script and skip out of the test suite if the requirements are not
+	  met.  The main requirement that I check is that MySQL be accessible.
+	  The test suite reports PASS in this case!! It would be far better to
+	  eport NA or UNKNOWN, but I don't know how to do this robustly.
 ----------
 1.11    2013-06-18
 	New features

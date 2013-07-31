@@ -46,7 +46,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.12_06
+    version: 1.12
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -112,4 +112,4 @@ requires:
   Tree::Trie: 1.9
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.12_06
+version: 1.12
