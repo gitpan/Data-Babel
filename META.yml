@@ -26,7 +26,6 @@ build_requires:
   Math::BaseCalc: 1.014
   POSIX: 1.24
   Scalar::Util: 1.23
-  Set::Scalar: 1.25
   TAP::Harness: 3.23
   Test::Deep: 0.11
   Test::More: 0.98
@@ -37,7 +36,7 @@ configure_requires:
   DBI: 1.604
   Module::Build: 0.4
 dynamic_config: 1
-generated_by: 'Module::Build version 0.4, CPAN::Meta::Converter version 2.112150'
+generated_by: 'Module::Build version 0.4007, CPAN::Meta::Converter version 2.120351'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -46,7 +45,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.12
+    version: 1.13_01
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -112,4 +111,4 @@ requires:
   Tree::Trie: 1.9
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.12
+version: 1.13_01

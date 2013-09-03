@@ -3,7 +3,7 @@ use t::runtests;
 use t::util;
 use Carp;
 use Getopt::Long;
-use Set::Scalar;
+# use Set::Scalar;
 use Test::More;
 use Text::Abbrev;
 use strict;

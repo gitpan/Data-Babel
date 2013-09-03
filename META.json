@@ -4,7 +4,7 @@
       "Nat Goodman <natg@shore.net>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "Module::Build version 0.4, CPAN::Meta::Converter version 2.112150",
+   "generated_by" : "Module::Build version 0.4007, CPAN::Meta::Converter version 2.120351",
    "license" : [
       "perl_5"
    ],
@@ -25,7 +25,7 @@
             "DBD::mysql" : "4.022",
             "DBI" : "1.604",
             "Exporter" : "5.65",
-            "File::Basename" : 0,
+            "File::Basename" : "0",
             "File::Spec" : "3.33",
             "File::Spec::Functions" : "3.33",
             "FindBin" : "1.5",
@@ -39,7 +39,6 @@
             "Math::BaseCalc" : "1.014",
             "POSIX" : "1.24",
             "Scalar::Util" : "1.23",
-            "Set::Scalar" : "1.25",
             "TAP::Harness" : "3.23",
             "Test::Deep" : "0.11",
             "Test::More" : "0.98",
@@ -67,7 +66,7 @@
             "Config::IniFiles" : "2.77",
             "DBD::mysql" : "4.022",
             "DBI" : "1.621",
-            "File::Basename" : 0,
+            "File::Basename" : "0",
             "File::Spec" : "3.33",
             "Graph" : "0.94",
             "Hash::AutoHash" : "1.16",
@@ -83,7 +82,7 @@
    "provides" : {
       "Data::Babel" : {
          "file" : "lib/Data/Babel.pm",
-         "version" : "1.12"
+         "version" : "1.13_01"
       },
       "Data::Babel::Base" : {
          "file" : "lib/Data/Babel/Base.pm",
@@ -142,11 +141,11 @@
          "version" : 0
       }
    },
-   "release_status" : "stable",
+   "release_status" : "testing",
    "resources" : {
       "license" : [
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.12"
+   "version" : "1.13_01"
 }

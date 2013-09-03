@@ -32,6 +32,7 @@ t/babel.005.use.t
 t/babel.009.util.t
 t/babel.010.basics.t
 t/babel.012.internal_idtype.t
+t/babel.014.schema.t
 t/babel.020.persist.t
 t/babel.020.persist/handcrafted.idtype.ini
 t/babel.020.persist/handcrafted.maptable.ini
@@ -107,6 +108,15 @@ t/babel.115.pdups/pdups.maptable_syn.ini
 t/babel.115.pdups/pdups.maptable_wide.ini
 t/babel.115.pdups/pdups.master_htt.ini
 t/babel.115.pdups/pdups.master_syn.ini
+t/babel.116.apostrophe.t
+t/babel.116.apostrophe/apostrophe.data.ini
+t/babel.116.apostrophe/apostrophe.data_syn.ini
+t/babel.116.apostrophe/apostrophe.idtype.ini
+t/babel.116.apostrophe/apostrophe.idtype_syn.ini
+t/babel.116.apostrophe/apostrophe.maptable.ini
+t/babel.116.apostrophe/apostrophe.maptable_syn.ini
+t/babel.116.apostrophe/apostrophe.master.ini
+t/babel.116.apostrophe/apostrophe.master_syn.ini
 t/Build.pm
 t/handcrafted.data.ini
 t/handcrafted.idtype.ini

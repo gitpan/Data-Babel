@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.12';
+our $VERSION='1.13_01';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -492,7 +492,11 @@ sub remove_pdups {
   my $self=shift;
   my($input,$query_paths,$columns,$args)=@_;
   # if $query_paths is undef or <= 2 columns, no pdups possible
+  # NG 13-09-02: I thought test below was using wrong boolean op (|| instead of &&)
+  #              but code was right and I was wrong
   return $input unless $query_paths || @$columns>2;
+  # print ">>> exercising new remove_pdups test: \$query_paths=$query_paths, \@\$columns=@$columns\n" if !$query_paths || @$columns<=2;
+  # return $input unless $query_paths && @$columns>2;
   my($group_cutoff,$prefixmatch_cutoff,$matcher_class)=
     $self->get(qw(pdups_group_cutoff pdups_prefixmatcher_cutoff pdups_prefixmatcher_class));
   my $exact_class='Data::Babel::PrefixMatcher::Exact';
@@ -551,6 +555,8 @@ sub remove_pdups {
 	  # add to matchers
 	  for (my $j=0; $j<@paths; $j++) {
 	    my $subrow=$subrows[$j];
+	    # NG 13-09-02: I think this optimization works...
+	    next if none {defined $_} @$subrow; # all NULL - wildcard - matches everything
 	    my $matcher=$matchers[$j];
 	    $matcher->put_data($subrow,$row_idx);
 	  }}
@@ -715,7 +721,29 @@ sub check_schema {
   }
   wantarray? @errstrs: (@errstrs? 0: 1);
 }
-sub check_contents {confess "check_contents NOT YET IMPLEMENTED"};
+# check consistency of explicit masters with maptables
+sub check_contents {
+  my $self=shift;
+  my $dbh=$self->dbh;
+  my @errstrs;
+  my @idtypes=sort {$a->name cmp $b->name} @{$self->idtypes};
+  for my $idtype (@idtypes) {
+    my $master=$idtype->master;
+    next unless $master->explicit;
+    my $idtype_name=$idtype->name;
+    my $master_name=$master->name;
+    my @maptables=sort {$a->name cmp $b->name} @{$idtype->maptables};
+    for my $maptable (@maptables) {
+      my $maptable_name=$maptable->name;
+      my $sql=qq(SELECT $idtype_name FROM $maptable_name WHERE $idtype_name NOT IN 
+                  (SELECT $idtype_name FROM $master_name));
+      my $missing=$dbh->selectcol_arrayref($sql);
+      push(@errstrs,"database query failed: ".$dbh->errstr) if $dbh->errstr;
+      push(@errstrs,"$idtype_name: missing ".scalar(@$missing)." ids from $maptable_name; here are some or all: ".join(', ',@$missing[0..min(4,$#$missing)])) if defined $missing && @$missing;
+    }
+  }
+  wantarray? @errstrs: (@errstrs? 0: 1);
+};
 
 # traverse query (or schema graph), returning maptable nodes in any pre-order traversal
 # can be called as function or method. $root is a maptable or master
@@ -831,7 +859,7 @@ Data::Babel - Translator for biological identifiers
 
 =head1 VERSION
 
-Version 1.12
+Version 1.13
 
 =head1 SYNOPSIS
 
@@ -992,7 +1020,7 @@ IdType
   format=/^[a-z]+\d+/
   sql_type=VARCHAR(32)
 
-The section name is the IdType name. The parameters are
+The section name is the IdType name. The parameters (all optional) are
 
 =over 2
 
@@ -1029,30 +1057,13 @@ Master.
 Master
 
   [gene_entrez_master]
-  inputs=<<INPUTS
-  MainData/GeneInformation
-  INPUTS
-  query=<<QUERY
-  SELECT locus_link_eid AS gene_entrez FROM gene_information 
-  QUERY
+  history=1
 
 The section name is the Master name; the name of the IdType is the
-same but without the '_master'. The 'inputs' and 'query' parameters
-are used by our database construction procedure and may not be useful
-in other settings.
+same but without the '_master'. If there is no history, the section
+can be empty, eg,
 
-The next example illustrates a Master that includes history information.
-
-  [gene_entrez_master]
-  inputs=<<INPUTS
-  MainData/GeneInformation MainData/GeneHistory
-  INPUTS
-  query=<<QUERY
-  SELECT old_locus_link_eid AS _ANY_gene_entrez, locus_link_eid AS gene_entrez
-  FROM gene_information LEFT OUTER JOIN gene_history 
-    ON locus_link_eid=new_locus_link_eid
-  QUERY
-  history=1
+  [probe_id_master]
 
 As of version 1.11, it is also possible to specify 'history' for an
 IdType. Previously, you could only specify 'history' for the IdType's
@@ -1071,39 +1082,10 @@ contains a row in which the '_X_' and current versions are the same.
 MapTable
 
   [gene_entrez_information]
-  inputs=MainData/GeneInformation 
   idtypes=gene_entrez gene_symbol gene_description organism_name_common
-  query=<<QUERY
-  SELECT 
-         GENE.locus_link_eid AS gene_entrez, 
-         GENE.symbol AS gene_symbol, 
-         GENE.description AS gene_description,
-         ORG.common_name AS organism_name_common
-  FROM 
-         gene_information AS GENE
-         LEFT OUTER JOIN
-         organism AS ORG ON GENE.organism_id=ORG.organism_id
-  QUERY
 
-  [% maptable %]
-  inputs=MainData/GeneUnigene
-  idtypes=gene_entrez gene_unigene
-  query=<<QUERY
-  SELECT UG.locus_link_eid AS gene_entrez, UG.unigene_eid AS gene_unigene
-  FROM   gene_unigene AS UG
-  QUERY
-
-This excerpt has two MapTable definitions which illustrate two ways
-that MapTables can be named.  The first uses a normal section name;
-the second invokes a L<Template::Toolkit> macro which generates unique
-names of the form 'maptable_001'.  This is very convenient because
-Babel databases typically contain a large number of MapTables, and
-it's hard to come up with good names for most of them.  In any case,
-the names don't matter much, because software generates the queries
-that operate on these tables.
-
-The 'inputs' and 'query' parameters are used by our database
-construction procedure and may not be useful in other settings.
+The section name is the MapTable name. The idtypes parameter tells the
+names of the IdTypes that the MapTable contains.
 
 =head2 Input ids that do not connect to any outputs
 
@@ -1127,7 +1109,7 @@ ids of the desired output types. This is normal.
 
 If you set the 'validate' option, the output will contain at least one
 row for each input identifier, and an additional column that indicates
-whether each input identifier is valid.
+whether the input identifier is valid.
 
 If no output IdTypes are specified, L<"translate"> returns a row
 containing one element, namely, the input identifier, for each input
@@ -1163,15 +1145,15 @@ changing the answer for the ones that remain, and if you "reverse
 direction" and swap the input type with one of the outputs, you get
 everything that was in the original answer.
 
-We accomplish this by requiring that the database of MapTables satisfy
-the B<universal relation property> (a well-known concept in relational
-database theory), and that L<"translate"> retrieves a sub-table of the
-universal relational.  Concretely, the universal relational is the
-natural full outer join of all the MapTables. L<"translate"> performs
-natural left out joins starting with the Master table for the input
-IdType, and then including enough tables to connect the input and
-output IdTypes. Left outer joins suffice, because L<"translate">
-starts with the Master.
+We accomplish this by requiring that the database of MapTables
+satisfies the B<universal relation property> (a well-known concept in
+relational database theory), and that L<"translate"> retrieves a
+sub-table of the universal relational.  Concretely, the universal
+relational is the natural full outer join of all the
+MapTables. L<"translate"> performs natural left out joins starting
+with the Master table for the input IdType and then including enough
+tables to connect the input and output IdTypes. Left outer joins
+suffice, because L<"translate"> starts with the Master.
 
 We further require that the database of MapTables be
 non-redundant. The basic idea is that a given IdType may not be
@@ -1525,10 +1507,12 @@ and work but are of dubious value.
            in scalar context, true if schema is good, false if schema is bad
  Args    : none
 
-=head2 check_contents - NOT YET IMPLEMENTED
+=head2 check_contents
 
  Title   : check_contents
- Usage   : $babel->check_schema
+ Usage   : @errstrs=$babel->check_contents
+           -- OR --
+           $ok=$babel->check_contents
  Function: Validate contents of Babel database. Checks consistency of explicit
            Masters and MapTables
  Returns : boolean
@@ -1716,7 +1700,8 @@ The available object attributes are
   history       boolean indicating whether Master contains history information.
   tablename     synonym for name
   inputs, namespace, query
-                used by our database construction procedure
+                DEPRECATED - intended for use by our database construction 
+                procedure but not actually used
 
 The available class attributes are
 
@@ -1767,7 +1752,8 @@ The available object attributes are
   id            name prefixed with 'maptable', eg, 'maptable:::gene_entrez_master'
   idtypes       ARRAY of Data::Babel::IdType objects contained by this MapTable
   inputs, namespace, query
-                used by our database construction procedure
+                DEPRECATED - intended for use by our database construction 
+                procedure but not actually used
 
 The available class attributes are
 
@@ -1793,9 +1779,8 @@ your bug as I make changes.
 
 =over 2
 
-=item 1. The attributes of Master and MapTable objects are overly
-specific to the procedure we use to construct databases and may not be
-useful in other settings.
+=item 1. Partial duplicate removal may be slow for large queries, esp. ones
+with input_ids_all. 
 
 =item 2. This class uses L<Class::AutoDB> to store its metadata and
 inherits all the L<Known Bugs and Caveats|Class::AutoDB/"Known Bugs

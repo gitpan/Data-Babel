@@ -40,7 +40,6 @@ my $builder = $class->new
 			'List::Util' => 1.23,
 			'Math::BaseCalc' => 1.014,
 			'POSIX' => 1.24,
-			'Set::Scalar' => 1.25,
 			'Scalar::Util' => 1.23,
 			'TAP::Harness' => 3.23,
 			'Test::Deep' =>  0.11,

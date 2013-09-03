@@ -7,6 +7,7 @@ use t::utilBabel;
 use Test::More;
 use Test::Deep;
 use File::Spec;
+use List::MoreUtils qw(natatime);
 use Class::AutoDB;
 use Data::Babel;
 use Data::Babel::Config;
@@ -138,6 +139,10 @@ $babel->load_implicit_masters;
 check_implicit_masters($babel,$data,'load_implicit_masters',__FILE__,__LINE__);
 load_handcrafted_masters($babel,$data);
 # load_ur($babel,'ur');
+# NG 13-09-02: added check_contents: should be true.
+my @errstrs=$babel->check_contents;
+ok(!@errstrs,'check_contents array context');
+ok(scalar($babel->check_contents),'check_contents boolean context');
 
 my $correct=prep_tabledata($data->basics->data);
 my $actual=$babel->translate
@@ -478,5 +483,45 @@ eval {
 my $err=$@;
 my $err_head='Unknown IdType\(s\) appear in MapTables:';
 like($err,qr/^$err_head/,'bad schema - unknown IdType');
+
+########################################
+# make contents bad by inserting some new values into maptable_001, maptable_002
+# remake babel and reload the database
+my $babel=new Data::Babel
+  (name=>$name,
+   idtypes=>File::Spec->catfile(scriptpath,'handcrafted.idtype.ini'),
+   masters=>File::Spec->catfile(scriptpath,'handcrafted.master.ini'),
+   maptables=>File::Spec->catfile(scriptpath,'handcrafted.maptable.ini'));
+my $data=new Data::Babel::Config
+  (file=>File::Spec->catfile(scriptpath,'handcrafted.data.ini'))->autohash;
+load_handcrafted_maptables($babel,$data);
+# NG 12-09-27: added load_implicit_masters
+$babel->load_implicit_masters;
+load_handcrafted_masters($babel,$data);
+# add the extra rows
+my $dbh=$babel->dbh;
+my $sql=qq(INSERT INTO maptable_001 (type_001,type_002)
+           VALUES ('type_001/extra_001','type_002/extra_001'));
+$dbh->do($sql);
+report_fail(!$dbh->errstr,'database insert failed: '.$dbh->errstr);
+my $sql=qq(INSERT INTO maptable_002 (type_002,type_003)
+           VALUES ('type_002/extra_001','type_003/extra_001'),
+                  ('type_002/extra_002','type_003/extra_002'),
+                  ('type_002/extra_003','type_003/extra_003'),
+                  ('type_002/extra_004','type_003/extra_004'),
+                  ('type_002/extra_005','type_003/extra_005'),
+                  ('type_002/extra_006','type_003/extra_006'));
+$dbh->do($sql);
+report_fail(!$dbh->errstr,'database insert failed: '.$dbh->errstr);
+my @errstrs=$babel->check_contents;
+is(scalar @errstrs,3,'bad contents - number of errors');
+my @err_infos=map {/^(\w+): missing (\d+) ids from (\w+)/} @errstrs;
+my $it=natatime 3,@err_infos;
+my $actual=[];
+while (my @err_info=$it->()) {
+  push(@$actual,join(' ',@err_info));
+}
+my $correct=['type_001 1 maptable_001','type_002 1 maptable_001','type_002 6 maptable_002'];
+cmp_deeply($actual,$correct,'bad contents - error information');
 
 done_testing();

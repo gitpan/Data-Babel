@@ -1,5 +1,19 @@
 Revision history for Data-Babel
 
+1.13_01 2013-09-02
+	New features
+	- 'check_contents' method - checks whether explict Masters contain all
+	  ids in the underlying MapTables
+        Bug fixes
+        - 'apostrophe' bug: ID containing apostrophe triggered bug in partial
+	  duplicate removal
+	Test changes
+	- Added test for schema mechanics
+	Documentation changes
+	- Deprecated obsolete workflow-related attributes and removed them from
+	  examples
+	- Deprecated obsolete maptable header macro - it was just a bad idea...
+----------
 1.12    2013-07-31
 	Bug fixes
 	- Fixed partial duplicates bug in which translate returned rows that 

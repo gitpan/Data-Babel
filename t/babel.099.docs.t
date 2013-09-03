@@ -168,6 +168,12 @@ ok(length($showout)>500,'show in METHODS AND FUNCTIONS');
 ok(!@errstrs,'check_schema array context in METHODS AND FUNCTIONS');
 $ok=$babel->check_schema;
 ok($ok,'check_schema scalar context in METHODS AND FUNCTIONS');
+# CAUTION: check_contents assumes you've loaded the real database somehow
+goto SKIP_check_contents;
+@errstrs=$babel->check_contents;
+$ok=$babel->check_contents;
+SKIP_check_contents:
+pass('check_contents in METHODS AND FUNCTIONS');
 
 goto SKIP_load_implicit_masters;
 $babel->load_implicit_masters;

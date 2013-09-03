@@ -9,7 +9,6 @@ use List::MoreUtils qw(uniq);
 use List::Util qw(min);
 use Math::BaseCalc;
 use POSIX qw(ceil);
-use Set::Scalar;
 use Test::More;
 use Text::Abbrev;
 use Class::AutoDB;

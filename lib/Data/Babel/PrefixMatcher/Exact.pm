@@ -44,15 +44,19 @@ sub put_data {
   my($self,$row,$data)=@_;
   my $matcher=$self->matcher;
   my($key)=@$row;
-  $matcher->$key($data);	# Hash::AutoHash::MultiValued does the right thing
+  # NG 13-09-02: for some reason, method notation fails when method contains apostrophe
+  # $matcher->$key($data);	# Hash::AutoHash::MultiValued does the right thing
+  $matcher->{$key}=$data;	# Hash::AutoHash::MultiValued does the right thing
 }
 # returns list of data values (row indexes) associated with row
 sub get_data {
   my($self,$row)=@_;
   my $matcher=$self->matcher;
   my($key)=@$row;
-  my @data=$matcher->$key;
-  @data=uniq @data;
+  # NG 13-09-02: for some reason, method notation fails when method contains apostrophe
+  # my @data=$matcher->$key;
+  my $data=$matcher->{$key} || [];
+  my @data=uniq @$data;
   wantarray? @data: \@data;
 }
 

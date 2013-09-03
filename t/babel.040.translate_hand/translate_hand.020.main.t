@@ -5,7 +5,6 @@ use t::lib;
 use t::utilBabel;
 use translate_hand;
 use List::Util qw(min);
-use Set::Scalar;
 use Test::More;
 use Data::Babel;
 use strict;

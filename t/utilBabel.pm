@@ -826,36 +826,36 @@ sub check_handcrafted_masters {
     my $id="master:$name";
     # masters 2&3 are implicit, hence some of their content is special
     my($inputs,$namespace,$query,$view,$implicit);
+    # NG 13-09-02: DEPRECATED workflow related attributes
     if ($i<2) {
-      $inputs="MainData/table_$suffix";
-      $namespace="ConnectDots";
-      $namespace="ConnectDots";
-      $query="SELECT col_$suffix AS type_$suffix FROM table_$suffix";
+      # $inputs="MainData/table_$suffix";
+      # $namespace="ConnectDots";
+      # $query="SELECT col_$suffix AS type_$suffix FROM table_$suffix";
       $view=0;
       $implicit=0;
     } else {
-      $namespace='';		# namespace not in input config file, but hopefully set in output
+      # $namespace='';		# namespace not in input config file, but hopefully set in output
       $implicit=1;
       if ($i==2) {
-	$inputs="ConnectDots/maptable_003 ConnectDots/maptable_002";
+	# $inputs="ConnectDots/maptable_003 ConnectDots/maptable_002";
 	# NG 10-11-10: added clause to exclude NULLs
 # 	$query=<<QUERY
 # 	SELECT type_003 FROM maptable_003
 # 	UNION
 # 	SELECT type_003 FROM maptable_002
 # QUERY
-	$query=<<QUERY
-	SELECT type_003 FROM maptable_003 WHERE type_003 IS NOT NULL
-	UNION
-	SELECT type_003 FROM maptable_002 WHERE type_003 IS NOT NULL
-QUERY
-  ;
+# 	$query=<<QUERY
+# 	SELECT type_003 FROM maptable_003 WHERE type_003 IS NOT NULL
+# 	UNION
+# 	SELECT type_003 FROM maptable_002 WHERE type_003 IS NOT NULL
+# QUERY
+#   ;
 	$view=0;
       } elsif ($i==3) {
-	$inputs="ConnectDots/maptable_003";
+	# $inputs="ConnectDots/maptable_003";
 	# NG 10-11-10: added clause to exclude NULLs
 	# $query="SELECT DISTINCT type_004 FROM maptable_003";
-	$query="SELECT DISTINCT type_004 FROM maptable_003 WHERE type_004 IS NOT NULL";
+	# $query="SELECT DISTINCT type_004 FROM maptable_003 WHERE type_004 IS NOT NULL";
 	$view=1;      
       }}
 
@@ -864,21 +864,21 @@ QUERY
     report_fail($actual->id eq $id,"$label object $i: id") or return 0;
     # NG 13-06-12: compare as sets 'cuz perl 5.18 no longer preserves order
     # report_fail(scrunched_eq($actual->inputs,$inputs),"$label object $i: inputs") or return 0;
-    report_fail(cmp_set_quietly(as_list($actual->inputs),as_list($inputs)),
-		"$label object $i: inputs")
-      or return 0;
-    report_fail(scrunched_eq($actual->namespace,$namespace),"$label object $i: namespace") 
-      or return 0;
+    # report_fail(cmp_set_quietly(as_list($actual->inputs),as_list($inputs)),
+    # 		"$label object $i: inputs")
+    #   or return 0;
+    # report_fail(scrunched_eq($actual->namespace,$namespace),"$label object $i: namespace") 
+    #   or return 0;
     # NG 13-06-13: for $i==2 (type_003_master), query is UNION over columns from 2 MapTables
     #              as of perl 5.18, order of MapTables not guaranteed
-    if ($i!=2) {
-      report_fail(scrunched_eq($actual->query,$query),"$label object $i: query") or return 0;
-    } else {
-      my @actual=split(/\s+UNION\s+/,$actual->query);
-      $query=~s/^\s+|\s+$//mg;
-      my @correct=split(/\s+UNION\s+/,$query);
-      report_fail(cmp_set_quietly(\@actual,\@correct),"$label object $i: query") or return 0;
-    }
+    # if ($i!=2) {
+    #   report_fail(scrunched_eq($actual->query,$query),"$label object $i: query") or return 0;
+    # } else {
+    #   my @actual=split(/\s+UNION\s+/,$actual->query);
+    #   $query=~s/^\s+|\s+$//mg;
+    #   my @correct=split(/\s+UNION\s+/,$query);
+    #   report_fail(cmp_set_quietly(\@actual,\@correct),"$label object $i: query") or return 0;
+    # }
     report_fail(as_bool($actual->view)==$view,"$label object $i: view") or return 0;
     report_fail(as_bool($actual->implicit)==$implicit,"$label object $i: implicit") or return 0;
     if ($mature) {
@@ -897,30 +897,31 @@ sub check_handcrafted_maptables {
   my $class='Data::Babel::MapTable';
   report_fail(@$actual==$num,"$label: number of elements") or return 0;
   my @actual=sort_objects($actual,$label) or return 0;
+  # NG 13-09-02: DEPRECATED workflow related attributes
   for my $i (0..$#actual) {
     my $actual=$actual[$i];
     my $suffix='00'.($i+1);
     my $suffix1='00'.($i+2);
     my $name="maptable_$suffix";
     my $id="maptable:$name";
-    my $inputs="MainData/table_$suffix";
-    my $query=<<QUERY
-SELECT col_$suffix AS type_$suffix, col_$suffix1 AS type_$suffix1
-FROM   table_$suffix
-QUERY
-      ;
+#     my $inputs="MainData/table_$suffix";
+#     my $query=<<QUERY
+# SELECT col_$suffix AS type_$suffix, col_$suffix1 AS type_$suffix1
+# FROM   table_$suffix
+# QUERY
+#       ;
     report_fail(UNIVERSAL::isa($actual,$class),"$label object $i: class") or return 0;
     report_fail($actual->name eq $name,"$label object $i: name") or return 0;
     report_fail($actual->id eq $id,"$label object $i: id") or return 0;
     # NG 13-06-12: compare as sets 'cuz perl 5.18 no longer preserves order
     # report_fail(scrunched_eq($actual->inputs,$inputs),"$label object $i: inputs") or return 0;
-    report_fail(cmp_set_quietly(as_list($actual->inputs),as_list($inputs)),
-		"$label object $i: inputs")
-      or return 0;
-    report_fail(scrunched_eq($actual->namespace,"ConnectDots"),"$label object $i: namespace") 
-      or return 0;
-    report_fail(scrunched_eq($actual->query,$query),"$label object $i: query") or return 0;
-     if ($mature) {
+    # report_fail(cmp_set_quietly(as_list($actual->inputs),as_list($inputs)),
+    # 		"$label object $i: inputs")
+    #   or return 0;
+    # report_fail(scrunched_eq($actual->namespace,"ConnectDots"),"$label object $i: namespace") 
+    #   or return 0;
+    # report_fail(scrunched_eq($actual->query,$query),"$label object $i: query") or return 0;
+    if ($mature) {
       check_object_basics($actual->babel,'Data::Babel','test',"$label object $i babel");
       check_objects_basics($actual->idtypes,'Data::Babel::IdType',
 			  ["type_$suffix","type_$suffix1"],"$label object $i idtypes");
