@@ -101,6 +101,16 @@ sub check_mysql {
   $dbh->do(qq(DELETE FROM test_table WHERE xxx=123)) or goto FAIL;
   $dbh->do(qq(DROP VIEW IF EXISTS test_view)) or goto FAIL;
   $dbh->do(qq(DROP TABLE IF EXISTS test_table)) or goto FAIL;
+  # NG 13-09-15: print MySQL version to help track down subtle FAILs
+  my $version=$dbh->selectrow_arrayref(qq(SELECT version())) or fail('get MySQL version');
+  if ($version) {
+    if (scalar(@$version)==1) {
+      diag('MySQL version ',$version->[0]);
+    } else {
+      fail('get MySQL version returned row with wrong nuber of columns. expected 1, got '.
+	   scalar(@$version));
+    }
+  }
   # since we made it here, we can do everything!
   return 1;
  FAIL:

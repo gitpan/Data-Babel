@@ -1,5 +1,9 @@
 Revision history for Data-Babel
 
+1.13_02 2013-09-15
+	This is a debugging release to track down FAILs seen by David Cantrell
+	(reports 34101829, 34102877)	
+
 1.13_01 2013-09-02
 	New features
 	- 'check_contents' method - checks whether explict Masters contain all

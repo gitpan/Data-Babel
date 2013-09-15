@@ -74,9 +74,17 @@ for my $m (1..3) {
   for my $n (1..3) {
     for my $x_id (@x_ids) {
       my @ids=map {"$m-$n $x_id"} (1..$n);
-      doit(\@ids,$n,__FILE__,__LINE__);
+      doit(\@ids,$n,__FILE__,__LINE__) or do {
+	# NG 13-09-15: print detailed diagnostic info to track down FAILs seen by 
+	#              David Cantrell (reports 34101829, 34102877)
+	diag_table('ur');
+	diag_table('maptable');
+	diag_table('type_0_master');
+	diag_table('type_1_master');
+	goto DONE;
+      }
     }}}
-
+DONE:
 done_testing();
 
 sub doit {
@@ -103,4 +111,27 @@ sub doit {
   my $actual=$babel->translate
     (input_idtype=>'type_1',filters=>{type_0=>$ids},output_idtypes=>[qw(type_0 type_1)]);
   cmp_table($actual,$correct,"filter $label",$file,$line);
+}
+# NG 13-09-15: print table dumps to track down FAILs seen by 
+#              David Cantrell (reports 34101829, 34102877)
+sub diag_table {
+  my($table,@cols)=@_;
+  my $cols=@cols? join(',',@cols): '*';
+  my $sth=$dbh->prepare(qq(SELECT $cols FROM $table)) or goto FAIL;
+  $sth->execute() or goto FAIL;
+  my @cols=@{$sth->{NAME}};
+  my $rows=$sth->fetchall_arrayref() or goto FAIL;
+  my @diag=("table $table:",join("\t",@cols));
+  for my $row (@$rows) {
+    # replace undef by NULL
+    push(@diag,join("\t",map {defined $_? $_: 'NULL'} @$row));
+  }
+  push(@diag,'----------');
+  my $diag=join("\n",@diag);
+  diag($diag);
+  return 1;
+ FAIL:
+  fail("dump table $table");
+  diag("While trying to dump table $table for diagnostic purposes, we got the following DBI error message\n".DBI->errstr);
+  return 0;
 }
