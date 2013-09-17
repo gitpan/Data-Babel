@@ -1,5 +1,10 @@
 Revision history for Data-Babel
 
+1.13_03 2013-09-17
+	Another debugging release to track down FAILs seen by David Cantrell
+	(reports 34101829, 34102877, 34457224)
+	Also includes documentation for new translate filters
+
 1.13_02 2013-09-15
 	This is a debugging release to track down FAILs seen by David Cantrell
 	(reports 34101829, 34102877)	

@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.13_02';
+our $VERSION='1.13_03';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -935,7 +935,7 @@ The principal method is L<"translate"> which converts identifiers of
 one type into identifiers of one or more output types.  In typical
 usage, you call L<"translate"> with a list of input ids to convert.
 You can also call it without any input ids (or with the special option
-'input_ids_all' set) to generate a complete mapping of the input type
+"input_ids_all" set) to generate a complete mapping of the input type
 to the output types.  This is convenient if you want to hang onto the
 mapping for repeated use.  You can also filter the output based on
 values of other identifier types.
@@ -955,9 +955,9 @@ The main components of a Data::Babel object are
 
 =over 2
 
-=item 1. a list of Data::Babel::IdType objects, each representing a type of identifier 
+=item 1. a list of L<Data::Babel::IdType|"COMPONENT CLASS Data::Babel::IdType"> objects, each representing a type of identifier 
 
-=item 2. a list of Data::Babel::Master objects, one per IdType, providing
+=item 2. a list of L<Data::Babel::Master|"COMPONENT CLASS Data::Babel::Master"> objects, one per IdType, providing
 
 =over 2
 
@@ -967,7 +967,7 @@ The main components of a Data::Babel object are
 
 =back
 
-=item 3. a list of Data::Babel::MapTable objects which implement the mapping
+=item 3. a list of L<Data::Babel::MapTable|"COMPONENT CLASS Data::Babel::MapTable"> objects which implement the mapping
 
 =back
 
@@ -1050,8 +1050,8 @@ The section name is the IdType name. The parameters (all optional) are
 
 =back
 
-As of version 1.11, it is also possible to specify 'history' for an
-IdType. Previously, you could only specify 'history' for the IdType's
+As of version 1.11, it is also possible to specify "history" for an
+IdType. Previously, you could only specify "history" for the IdType's
 Master.
 
 Master
@@ -1065,8 +1065,8 @@ can be empty, eg,
 
   [probe_id_master]
 
-As of version 1.11, it is also possible to specify 'history' for an
-IdType. Previously, you could only specify 'history' for the IdType's
+As of version 1.11, it is also possible to specify "history" for an
+IdType. Previously, you could only specify "history" for the IdType's
 Master.
 
 A Master without history is implemented as a one column table whose
@@ -1093,7 +1093,7 @@ By default, the L<"translate"> method does not return any output for
 input identifiers that do not connect to any identifiers of the
 desired output types; these are output rows in which the output
 columns are all NULL. You can instruct L<"translate"> to include these
-rows in the result by setting the 'validate' option.
+rows in the result by setting the "validate" option.
 
 An input identifier can fail to connect for two reasons: 
 
@@ -1107,13 +1107,13 @@ ids of the desired output types. This is normal.
 
 =back
 
-If you set the 'validate' option, the output will contain at least one
+If you set the "validate" option, the output will contain at least one
 row for each input identifier, and an additional column that indicates
 whether the input identifier is valid.
 
 If no output IdTypes are specified, L<"translate"> returns a row
 containing one element, namely, the input identifier, for each input
-id that exists in the corresponding Master table. If the 'validate'
+id that exists in the corresponding Master table. If the "validate"
 option is set, the output will contain one row for each input
 identifier; this is essentially a (possibly re-ordered) copy of the
 input list with duplicates removed.
@@ -1152,8 +1152,8 @@ sub-table of the universal relational.  Concretely, the universal
 relational is the natural full outer join of all the
 MapTables. L<"translate"> performs natural left out joins starting
 with the Master table for the input IdType and then including enough
-tables to connect the input and output IdTypes. Left outer joins
-suffice, because L<"translate"> starts with the Master.
+tables to connect the input, output, and filter IdTypes. Left outer
+joins suffice, because L<"translate"> starts with the Master.
 
 We further require that the database of MapTables be
 non-redundant. The basic idea is that a given IdType may not be
@@ -1170,7 +1170,7 @@ whose edges go between each MapTable and the IdTypes it contains. In
 this representation, a non-redundant schema is a tree.
 
 L<"translate"> uses this graph to find the MapTables it must join to
-connect the input and output IdTypes. The algorithms is simple: start
+connect the input, output, and filter IdTypes. The algorithms is simple: start
 at the leaves and recursively prune back branches that do not contain
 the input or output IdTypes.
 
@@ -1191,8 +1191,8 @@ the input or output IdTypes.
            old         existing Data::Babel object in case program already
                        fetched it (typically via 'old')
            autodb      Class::AutoDB object for database containing Babel.
-                       class method often set before running 'new'
- Notes   : 'name' is required. All other args are optional
+                       class method often set before running "new"
+ Notes   : "name" is required. All other args are optional
 
 The component object parameters can be any of the following:
 
@@ -1205,7 +1205,7 @@ component objects
 method of L<Config::IniFiles>, eg, filehandles and IO::File objects
 
 =item 3. objects of the appropriate type for each component, namely,
-Data::Babel::IdType, Data::Babel::Master, Data::Babel::MapTable,
+L<Data::Babel::IdType|"COMPONENT CLASS Data::Babel::IdType">, L<Data::Babel::Master|"COMPONENT CLASS Data::Babel::Master">, L<Data::Babel::MapTable|"COMPONENT CLASS Data::Babel::MapTable">,
 respectively
 
 =item 4. ARRAYs of the above
@@ -1262,16 +1262,16 @@ The available class attributes are
            input_ids_all  boolean. If true, all ids of the input type are
                           translated. Same as omitting input_ids or setting it
                           to undef but more explicit.
-           filters        HASH or ARRAY of conditions limiting the output; see 
-                          below.
            output_idtypes ARRAY of names of Data::Babel::IdType objects or
                           objects
+           filters        specification of conditions limiting the output; see 
+                          below.
            validate       boolean. If true, the output will contain at least one
                           row for each input id and an additional column 
                           indicating whether the input id is valid.
            limit          maximum number of rows to retrieve
            count          boolean. If true, return number of output rows rather 
-                          than the rows themselves. Equivalent to 'count'
+                          than the rows themselves. Equivalent to "count"
                           method.
            keep_pdups     boolean. If true, partial duplicates are not removed
                           from the result.
@@ -1280,7 +1280,7 @@ The available class attributes are
 
 =over 2
 
-=item * 'translate' retains duplicate output columns.
+=item * "translate" retains duplicate output columns.
 
 =item * The order of output rows is arbitrary.
 
@@ -1294,37 +1294,37 @@ empty.
 
 =item * It is an error to set both input_ids and input_ids_all.
 
-=item * It is legal but odd to specify a filter on the input
-idtype. This effectively computes the intersection of the input and
-filter ids.
+=item * It is legal to specify a filter on the input idtype. This
+constrains the input ids to ones that pass the filter and may be
+especially useful when processing all input ids,
 
 =item * Input and filter ids can be old (valid in the past) or current
 (valid now). Output ids are always current.
 
-=item * By default, 'translate' does not return rows in which the
-output columns are all NULL. Setting 'validate' changes this and
+=item * By default, "translate" does not return rows in which the
+output columns are all NULL. Setting "validate" changes this and
 ensures that every input id will appear in the output.
 
-=item * If 'count' and 'limit' both set, the result is the number of
+=item * If "count" and "limit" both set, the result is the number of
 output rows after the limit is applied and will always be <= the
 limit.
 
-=item * If 'validate' and 'limit' both set, the result may not contain
+=item * If "validate" and "limit" both set, the result may not contain
 all input ids if to do so would produce more rows than the limit. This
-defeats one of the purposes of 'validate', namely to ensure that all
+defeats one of the purposes of "validate", namely to ensure that all
 input ids appear in the output.
 
-=item * If 'count' and 'validate' both set, the result is the number
-of output rows including ones added by 'validate', ie, rows with in
+=item * If "count" and "validate" both set, the result is the number
+of output rows including ones added by "validate", ie, rows with in
 which all output columns are NULL.
 
-=item * If 'validate' and 'filters' both set, the result may contain
+=item * If "validate" and 'filters' both set, the result may contain
 input ids excluded by the filter. These rows will have NULLs in all
 output columns.
 
 =item * If no output idtypes are specified, the output will contain
 one row for each valid input id (by default) or one row for each id
-whether valid or not (if 'validate' is set).
+whether valid or not (if "validate" is set).
 
 =item * Comparisons are B<case insensitive>.  This includes input ids,
 filters, and internal comparisons used to join database tables.  For
@@ -1337,19 +1337,24 @@ information is in the database.
 
 =head3 Filters
 
-The 'filters' argument is a HASH or ARRAY of types and values. The
-types can be names of Data::Babel::IdType objects or objects
-themselves. The values can be single ids, ARRAYs of ids, or undef; the
-ARRAYs may also contain undef. For example
+The "filters" argument is typically a HASH or ARRAY of idtypes and
+conditions on those idtypes. See L<"Summary of filters argument"> for a
+full description of what can be used as the "filters" argument. The
+idtypes can be names of IdType objects or objects themselves. The
+conditions can be ids or SQL fragments. We process this information to
+create SQL expressions that can be used in the WHERE clause of the
+query generated by "translate".
+
+Here are some examples.
 
   filters=>{chip_affy=>'hgu133a'}
   filters=>{chip_affy=>['hgu133a','hgu133plus2']}
-  filters=>{chip_affy=>['hgu133a','hgu133plus2'],pathway_kegg_id=>4610}
-  filters=>{chip_affy=>['hgu133a','hgu133plus2'],pathway_kegg_id=>undef}
+  filters=>{chip_affy=>[\"LIKE 'hgu%'",'mgu74a'],pathway_kegg_id=>4610}
+  filters=>{chip_affy=>[\"LIKE 'hgu%'",\"LIKE 'mgu74a'"],pathway_kegg_id=>undef}
   filters=>{chip_affy=>'hgu133a',pathway_kegg_id=>[undef,4610]}
 
-If the argument is an ARRAY, it is possible for the same type to
-appear multiple times in which case the values are combined.  For example,
+If the argument is an ARRAY, it is possible for the same idtype to
+appear multiple times. If so, the conditions are combined. For example,
 
   filters=>[chip_affy=>'hgu133a',chip_affy=>'hgu133plus2']
 
@@ -1357,13 +1362,23 @@ is equivalent to
 
   filters=>{chip_affy=>['hgu133a','hgu133plus2']}
 
-If a filter value is an empty ARRAY, ie, [], the result will be empty.
+If the filter condition is an empty ARRAY, ie, [], the result will be empty.
+
+If the condition contains multiple ids, we combine them into a
+single SQL IN clause. For example, this idtype=>conditions pair
+
+  chip_affy=>['hgu133a','hgu133plus2']
+
+generates this SQL
+
+  chip_affy IN ('hgu133a','hgu133plus2')
 
 As noted in L<Notes on translate>, comparisons are B<case insensitive>.
 
-If a filter value is undef, all ids of the given type are acceptable.
-This limits the output to rows for which the filter type is not
-NULL. For example,
+If a filter condition is undef, all ids of the given type are
+acceptable.  This limits the output to rows for which the filter type
+is not NULL. This usage is analogous to what it means for "indut_ids"
+to be undef. For example,
 
   $babel->translate(input_idtype=>'gene_entrez',
                     filters=>{pathway_kegg_id=>undef},
@@ -1372,8 +1387,8 @@ NULL. For example,
 generates a table of all Entrez Gene ids and gene symbols which appear in
 any KEGG pathway.
 
-Including undef in an ARRAY lets the output contain rows for which the
-filter type is NULL.  For example,
+Including undef in an ARRAY has the opposite meaning: it lets the
+output contain rows for which the filter type is NULL.  For example,
 
   $babel->translate(input_idtype=>'gene_entrez',
                     filters=>{pathway_kegg_id=>[undef,4610]},
@@ -1382,8 +1397,165 @@ filter type is NULL.  For example,
 generates a table of all Entrez Gene ids and gene symbols which either
 appear in KEGG pathway 4610 or appear in no KEGG pathway.
 
-CAUTION: undef has opposite semantics depending on whether it's the
-only value for a filter type or whether it's one of several.
+It may seem strange for undef to have opposite meanings depending on
+context, but it is "the right thing" in practice.
+
+=head4 Filter conditions
+
+Each idtype=>condition pair generates a L<Data::Babel::Filter|"HELPER CLASS Data::Babel::Filter">
+object. See L<"Details on conditions">. In brief, a condition can be
+
+=over 2
+
+=item * a single id, eg, chip_affy=>'hgu133a'
+
+=item * a single SQL fragment, eg, chip_affy=>\"LIKE 'hgu133a'". The '\' before the first quote generates a reference to the string, which is what tells the software you want a SQL fragment instead of an id.
+
+=item * Data::Babel::Filter object. Included for completeness.
+
+=item * undef, eg, pathway_kegg_id=>undef. This means that all ids of
+the filter idtype are acceptable and only excludes rows for which the
+filter idtype is NULL.
+
+=item * ARRAY of the above. The general effect is to OR the elements
+of the ARRAY. The exception is undef: in an ARRAY, undef means that
+NULL is acceptable. For example
+
+  chip_affy=>[\"LIKE 'hgu%'",'mgu74a']
+
+means
+
+  chip_affy LIKE 'hgu%' OR chip_affy = 'mgu74a'
+
+and
+
+  pathway_kegg_id=>[undef,4610]
+
+means
+
+  pathway_kegg_id IS NOT NULL OR pathway_kegg_id = 4610
+
+=back 
+
+The "filters" argument as a whole generally contains multiple
+idtype=>condition pairs. Each generates a
+L<Data::Babel::Filter|"HELPER CLASS Data::Babel::Filter"> object and
+the ensemble generates an ARRAY of these objects. The semantics is to
+AND these together. For example,
+
+  chip_affy=>[\"LIKE 'hgu%'",'mgu74a'], pathway_kegg_id=>[undef,4610]
+
+means
+
+  (chip_affy LIKE 'hgu%' OR chip_affy = 'mgu74a') AND
+    (pathway_kegg_id IS NOT NULL OR pathway_kegg_id = 4610)
+
+In succinct terms: we OR the conditions for each individual idtype and
+AND the conditions across different idtypes.
+
+=head4 Filter conditions with complex SQL
+
+Filter conditions can contain arbitrarily complex SQL fragments,
+although we expect most cases to be simple. Simple cases, like the
+examples above, use the filter's idtype in a single condition.  The
+next step in complexity is to use the idtype in multiple
+conditions. Here's an example.
+
+  chip_affy=>\"LIKE 'hgu%' AND : != 'hgu133b'"
+
+The ':' after the 'AND' is called an embedded idtype marker and tells
+the code to insert the filter idtype at that point in the query.  The
+':' is optional at the beginning of the SQL fragment, and we've omitted it
+in all examples so far. It is also possible to spell out the idtype name
+after the ':' as in this example
+
+  chip_affy=>\"LIKE 'hgu%' AND :chip_affy != 'hgu133b'"
+
+The next jump in complexity is to use multiple idtypes in the same SQL fragment. For example,
+
+  chip_affy=>\"(:chip_affy LIKE 'hgu%' AND :chip_affy != 'hgu133b') AND
+    (:pathway_kegg_id IS NOT NULL OR :pathway_kegg_id = 4610)"
+
+Looking at this example, you might wonder why we need to bother with
+the filter idtype ('chip_affy=>'). Indeed, once you decide to spell
+out the idtypes in the SQL, there is no need to specify the filter
+idtype. This leads to two special cases:
+
+=over 2
+
+=item 1. In the filters HASH, you may include an empty string ('') key, eg,
+
+  ''=>\"(:chip_affy LIKE 'hgu%' AND :chip_affy != 'hgu133b') AND
+    (:pathway_kegg_id IS NOT NULL OR :pathway_kegg_id = 4610)"
+
+Bear in mind that you can only have one of these! Also remember that
+using 'undef' as the key may not work as expected, because Perl
+automatically quotes the word on the left hand side of the '=>'
+operator.
+
+=item 2. Instead of a HASH, use a string (or reference to a string) as
+the value of the "filters" argument, eg,
+
+  filters=>"(:chip_affy LIKE 'hgu%' AND :chip_affy != 'hgu133b') AND
+              (:pathway_kegg_id IS NOT NULL OR :pathway_kegg_id = 4610)"
+
+=back
+
+It should be clear that all the filter syntax we've presented up to
+this point is mere sugar coating for this case. If you're happy
+writing this sort of SQL, you can skip the rest.
+
+CAUTION: We do not parse the SQL! Syntax errors will be caught by the
+DBMS and will generate error messages that may not be entirely
+intuitive.  Sorry.  If you include an idtype without the ':' mark, we
+won't see it and may not generate enough joins to connect the idtype
+to the rest of the query.
+
+=head4 Summary of filters argument
+
+The "filters" argument can be
+
+=over 2
+
+=item * HASH with elements of the form
+
+  idtype=>conditions
+  ''=>conditions
+
+For example,
+
+  filters=>{
+    chip_affy=>['hgu133a','hgu133plus2',\"LIKE 'mgu%'","!= 'hgu133b'],
+    pathway_kegg_id=>[4610,undef],
+    ''=>\":gene_symbol LIKE 'casp%' OR :gene_description LIKE '%apoptosis%'"}
+
+It is probably an error for the HASH to contain duplicate idtypes, because the last one is the only one that sticks.
+
+=item * ARRAY with elements of the form
+
+  idtype=>conditions
+  ''=>conditions
+  Data::Babel::Filter object
+
+For example,
+
+  filters=>[
+    chip_affy=>['hgu133a','hgu133plus2'],
+    chip_affy=>\"LIKE 'mgu%'",
+    chip_affy=>["!= 'hgu133b'],
+    pathway_kegg_id=>[4610,undef],
+    ''=>\":gene_symbol LIKE 'casp%' OR :gene_description LIKE '%apoptosis%'",
+    new Data::Babel::Filter(conditions=>":organism_name != 'rat'")]
+
+It is fine for the ARRAY to contain duplicate idtypes, in which case
+their conditions are merged.
+
+=item * string or reference to string, for example
+
+  filters=>"(:chip_affy LIKE 'hgu%' AND :chip_affy != 'hgu133b') AND
+              (:pathway_kegg_id IS NOT NULL OR :pathway_kegg_id = 4610)"
+
+=back
 
 =head3 Histories
 
@@ -1406,11 +1578,11 @@ can contain rows in which the output id does not match the filter.
                       input_ids=>[1,2,3],
                       filters=>{chip_affy=>'hgu133a'},
                       output_idtypes=>[qw(transcript_refseq transcript_ensembl)])
- Function: Count number of output rows that would be generated by 'translate'
+ Function: Count number of output rows that would be generated by "translate"
  Returns : number
- Args    : same as 'translate'
+ Args    : same as "translate"
 
-'count' is a wrapper for L<"translate"> that sets the 'count' argument to a true value.
+"count" is a wrapper for L<"translate"> that sets the "count" argument to a true value.
 
 =head2 validate
 
@@ -1427,21 +1599,21 @@ can contain rows in which the output id does not match the filter.
              1) validity status. 1 for valid; 0 for invalid
              2) current value of the id or undef if it has no current value; may
                 be the same as the original id
-           If output_idtypes is set, the result is ther same as 'translate' with
-           the 'validate' option set
- Args    : same as 'translate'
+           If output_idtypes is set, the result is ther same as "translate" with
+           the "validate" option set
+ Args    : same as "translate"
 
-'validate' looks up the given input ids in the Master tables for the
+"validate" looks up the given input ids in the Master tables for the
 given input type and returns a table indicating which ids are
 valid. For types with history information, the method also
 indicates the current value of the id. For types that have no history,
 the current value will always equal the given id if the id is valid.
 
-'validate' can also retrieve a complete table of valid ids (along with
+"validate" can also retrieve a complete table of valid ids (along with
 history information) for the type.
 
-'validate' is a wrapper for L<"translate"> that (1) sets the
-'validate' argument to a true value and (2) sets the output_idtypes
+"validate" is a wrapper for L<"translate"> that (1) sets the
+"validate" argument to a true value and (2) sets the output_idtypes
 argument to the input_idtype unless the user explicitly set it.  All
 other L<"translate"> arguments (filters, count) are legal here and
 work but are of dubious value.
@@ -1463,7 +1635,7 @@ else the current value will be undef.
 =item * For rows whose status is 0 (invalid), the current value will
 always be undef.
 
-=item * The 'translate' arguments 'filters' and 'count' are legal here
+=item * The "translate" arguments 'filters' and "count" are legal here
 and work but are of dubious value.
 
 =item * As noted in L<Notes on translate>, comparisons are B<case insensitive>.
@@ -1594,7 +1766,9 @@ The methods in this section map names or ids to component objects, or
  Args    : id of object
  Notes   : trival convenience method
 
-=head1 METHODS AND ATTRIBUTES OF COMPONENT CLASS Data::Babel::IdType
+=head1 COMPONENT CLASS Data::Babel::IdType
+
+A Data::Babel::IdType object represents a type of identifier.
 
 =head2 new
 
@@ -1608,7 +1782,7 @@ The methods in this section map names or ids to component objects, or
            old         existing Data::Babel object in case program already
                        fetched it (typically via 'old')
            autodb      Class::AutoDB object for database containing Babel.
-                       class method often set before running 'new'
+                       class method often set before running "new"
  Notes   : 'name' is required. All other args are optional
 
 =head2 old
@@ -1622,6 +1796,14 @@ The methods in this section map names or ids to component objects, or
  Args    : name of Data::Babel::IdType object, eg, 'gene_entrez'
            if keyword form used, can also specify autodb to set the
            corresponding class attribute
+
+=head2 degree
+
+ Title   : degree 
+ Usage   : $number=$idtype->degree
+ Function: Tell how many Data::Babel::MapTables contain this IdType          
+ Returns : number
+ Args    : none
 
 =head2 attributes
 
@@ -1650,15 +1832,18 @@ The available class attributes are
 
   autodb     Class::AutoDB object for database containing Babel
 
-=head2 degree
+=head1 COMPONENT CLASS Data::Babel::Master
 
- Title   : degree 
- Usage   : $number=$idtype->degree
- Function: Tell how many Data::Babel::MapTables contain this IdType          
- Returns : number
- Args    : none
+A Data::Babel::Master object represents the database table underlying
+a L<Data::Babel::IdType|"COMPONENT CLASS Data::Babel::IdType">. The table contains
 
-=head1 METHODS AND ATTRIBUTES OF COMPONENT CLASS Data::Babel::Master
+=over 2
+
+=item * a master list of valid values for the type, and 
+
+=item * optionally, a history mapping old values to current ones
+
+=back
 
 =head2 new
 
@@ -1672,7 +1857,7 @@ The available class attributes are
            old         existing Data::Babel object in case program already
                        fetched it (typically via 'old')
            autodb      Class::AutoDB object for database containing Babel.
-                       class method often set before running 'new'
+                       class method often set before running "new"
  Notes   : 'name' is required. All other args are optional
 
 =head2 old
@@ -1686,6 +1871,14 @@ The available class attributes are
  Args    : name of Data::Babel::Master object, eg, 'gene_entrez'
            if keyword form used, can also specify autodb to set the
            corresponding class attribute
+
+=head2 degree
+
+ Title   : degree 
+ Usage   : $number=$master->degree
+ Function: Tell how many Data::Babel::MapTables contain this Master's IdType          
+ Returns : number
+ Args    : none
 
 =head2 attributes
 
@@ -1707,15 +1900,9 @@ The available class attributes are
 
   autodb     Class::AutoDB object for database containing Babel
 
-=head2 degree
+=head1 COMPONENT CLASS Data::Babel::MapTable
 
- Title   : degree 
- Usage   : $number=$master->degree
- Function: Tell how many Data::Babel::MapTables contain this Master's IdType          
- Returns : number
- Args    : none
-
-=head1 METHODS AND ATTRIBUTES OF COMPONENT CLASS Data::Babel::MapTable
+Data::Babel::MapTable objects represent the database tables that implement the mapping.
 
 =head2 new
 
@@ -1729,7 +1916,7 @@ The available class attributes are
            old         existing Data::Babel object in case program already
                        fetched it (typically via 'old')
            autodb      Class::AutoDB object for database containing Babel.
-                       class method often set before running 'new'
+                       class method often set before running "new"
  Notes   : 'name' is required. All other args are optional
 
 =head2 old
@@ -1758,6 +1945,231 @@ The available object attributes are
 The available class attributes are
 
   autodb     Class::AutoDB object for database containing Babel
+
+=head1 HELPER CLASS Data::Babel::Filter
+
+A Data::Babel::Filter object represents a condition limiting the
+output of a Data::Babel L<"translate">, L<"validate">, or L<"count">
+query. (Hereafter, we will refer only to "translate", but everything
+applies to the other methods, too). In typical usage, code in
+Data:Babel generates Filter objects automatically based on the
+L<"filters"|"Filters"> argument to "translate". Application code
+rarely needs to create these objects directly.
+
+Recall that the "filters" argument to "translate" typically consists
+of idtype=>conditions pairs. The code generates a Filter object for
+each of these pairs.
+
+A mature Data::Babel::Filter object has two attributes of interest:
+
+=over 2
+
+=item 1. sql - a SQL expression that can be used as a WHERE clause
+(but without the 'WHERE') or ANDed onto a WHERE clause (but without
+the 'AND') in a query generated by "translate"
+
+=item 2. filter_idtypes - an ARRAY of IdTypes used by the SQL
+expression; "translate" needs this to to find the MapTables it must
+join to connect the input, output, and filter IdTypes.  See
+L<"Technical details">.
+
+=back
+
+=head2 new
+
+ Title   : new 
+ Usage   : $filter=new Data::Babel::Filter
+                       filter_idtype=>'gene_symbol',
+                       conditions=>["Htt",\"LIKE 'casp%'"]
+ Function: Create new Data::Babel::Filter object representing the coditions. 
+ Returns : Data::Babel::Filter object
+ Args    : condtions      see below
+           filter_idtype  default IdType for conditions. Can be name of 
+                          Data::Babel::IdType object or object
+           filter_idtypes ARRAY of IdTypes used by conditions. Can be names of
+                          Data::Babel::IdType objects or objects
+           allow_embedded_idtypes
+                          boolean. If true, IdTypes (as names) may be embedded 
+                          in the conditions; see details below. default: true
+           embedded_idtype_marker
+                          perfix marking an embedded IdType name. default: ':'
+           treat_string_as
+                          indicator telling how to interpret strings in
+                          "conditions" Choices: 'id', 'sql'. default: 'id'
+           treat_stringref_as
+                          indicator telling how to interpret references to 
+                          strings in "conditions" Choices: 'sql', 'id'.
+                          default: 'sql' 
+           prepend_idtype_to
+                          indicator telling when to prepend the "filter_idtype"
+                          arg to SQL fragments contained in "conditions". 
+                          Choices: 'auto', 'string', 'reference', 'all', 'none'. 
+                          default: 'auto'
+ Notes   : "conditons" is required. "filter_idtype" also usually specified in
+           typical usage. Other args are rarely used.
+
+=head2 attributes
+
+All arguments to "new" plus
+
+  sql            the SQL expression generated by "new"
+
+In the mature object - ie, upon completion of "new" - the important
+attributes are "sql" and "filter_idtypes".  At this point, the
+attributes will contain the following:
+
+=over 2
+
+=item 1. sql. The SQL expression generated by "new"; this expression
+can be used as a WHERE clause (but without the 'WHERE') or ANDed onto
+an WHERE clause (but without the 'AND') in a query generated by
+"translate".
+
+=item 2. filter_idtypes. ARRAY of IdTypes that "new" determined are
+used by the SQL expression plus any idtypes passed in via the
+"filter_idtype" or "filter_idtypes" arguments.
+
+=back
+
+=head2 Notes on new Data::Babel::Filter
+
+In typical usage, "conditions" is the right hand side of an
+"idtype=>conditions" pair in the L<"filters"|"Filters"> argument to
+"translate". It can also be the complete value of the "filters"
+argument when it is set to a string or string reference. "conditions'
+can contain ids that are combined for use in SQL IN clauses or
+fragments of actual SQL.
+
+SQL fragments may contain 'embedded IdTypes'.  These are IdTypes names
+prefixed by a marker, typically ':', for example ':gene_symbol'
+(without the quotes!!).  An example of such a fragment is
+
+  :gene_symbol LIKE 'casp%' OR :gene_symbol = 'Htt'
+
+If "filter_idtype" is set (it usually is), you can use the marker
+without the name to denote the "filter_idtype". For example, if
+"filter_idtye" is "gene_symbol", you could write the previous SQL
+fragment as
+
+  : LIKE 'casp%' OR : = 'Htt'
+
+By default, we treat string conditions as ids, and references to
+strings as SQL fragments.  You can change this via the
+"treat_string_as" and "treat_stringref_as" arguments.
+
+By default, we prepend the "filter_idtype" argument to SQL fragments
+unless an embedded IdType (with or without a name) is the first thing
+in the fragment. You can change this via the "prepend_idtype_to"
+argument.  For example, if "filter_idtye" is "gene_symbol", you can
+express the SQL clause
+
+  gene_symbol LIKE 'casp%'
+
+with any of these fragments
+
+ LIKE 'casp%'
+ : LIKE 'casp%'
+ :gene_symbol LIKE 'casp%'
+
+The "conditions" argument can contain arbitrarily complex SQL, but we
+expect most cases to be simple. Simple cases, like the example above,
+use the "filter_idtype" in a single condition. In such cases, you
+don't need to use embedded IdTypes. You can also express ORs of simple
+conditions without resorting to embedded IdTypes by putting the
+conditions in an ARRAY; see L<"Details on conditions">.  For example,
+if "filter_idtye" is "gene_symbol", you can express the SQL clause
+
+  gene_symbol LIKE 'casp%' OR gene_symbol LIKE 'il%'
+
+with this Perl construct
+
+ [\"LIKE 'casp%'", \"LIKE 'il%'"]
+
+=head3 Details on conditions
+
+The "conditions" argument may be one or an ARRAY of the following. An
+ARRAY represents the OR of its elements.
+
+=over 2
+
+=item * string. Id or SQL fragment depending on the value of the
+"treat_string_as" argument. The default is "id".
+
+=item * reference to string. SQL fragment or id depending on the
+value of the "treat_stringref_as" argument. The default is "SQL".
+
+=item * Data::Babel::Filter object. This has little utility
+by itself, but in an ARRAY it causes the old object to be ORed onto
+the rest of the conditions.
+
+=item * undef. When used standalone, it is equivalent to the SQL
+fragment "IS NOT NULL". In typical cases this means that all ids of
+"filter_idtype" are acceptable, similar to what it means for
+"input_ids" to be undef in L<"translate">. In an ARRAY it has the
+opposite meaning, which in typical usage lets the output contain rows
+for which "filter_idtype" is NULL. It may seem strange for undef to
+have opposite meanings depending on context, but is natural in
+practice.
+
+=back
+
+If "conditions" contains multiple ids, we combine them into a
+single SQL IN clause. For example, if "filter_idtye" is "gene_symbol"
+and "conditions" is ['Htt','Casp6','Ins2'], we generate
+
+  gene_symbol IN ('Htt','Casp6','Ins2')
+
+=head3 Why we need embedded IdType markers
+
+To process complex SQL conditions, we need to identify the IdTypes
+used by the condition for two purposes. (1) "translate" needs these to
+to find the MapTables it must join to connect the IdTypes, and (2) for
+IdTypes with histories, we have to prepend the IdType name with '_X_'
+whenever the IdType is compared to a constant so that the history
+mapping will be applied. 
+
+To do this without embedded IdType markers, we would need to find or
+develop a SQL parser that creates a parse tree that we can examine to
+find the IdTypes, modify to handle histories, and convert back to SQL
+after being modified. Because SQL parsing is technically challenging,
+maintainability is a crucial concern: it would be very unpleasant to
+incorporate a module that works for our purposes today but ceases to
+do so in a future release.
+
+We investigated several CPAN modules that do SQL parsing.
+
+=over 2
+
+=item * L<SQL::Statement> seems to be under active development. The
+SQL dialect it supports is incomplete but probably adequate for our
+needs. The parse tree it produces is easy to work with but is not
+documented and presumably might change in future releases. The
+showstopper is that it has no method for converting the parse tree back
+to SQL.
+
+=item * L<DBIx::MyParsePP> does most of what we want but hasn't been
+updated in years, which raises worries about long term
+maintainability. It implements the MySQL 5.0 SQL dialect, which is
+fine for our purposes.  It is slow to load because the grammar is big,
+
+=item * L<DBIx::MyParse> is a C implementation of DBIx::MyParsePP. We
+didn't test it, because it requires access to MySQL source, which you
+have to patch (!!). It seems unlikely that this could be incorporated
+into the normal CPAN installation process.
+
+=item * L<SQL::Abstract::Parser> looks pretty good, but the
+documentation cautions against relying on the structure of the parse
+tree at this point.  This might offer a future solution when the
+developers declare the parse tree format to be stable.
+
+=back
+
+We considered developing our own parser for a mini-SQL dialect limited
+to clauses separated by AND, OR, and NOT. Even this is hard because of
+SQL constructs like 'BETWEEN n1 AND n2'.
+
+Our conclusion is that while it is inelegant to require embedded IdType
+markers, this is the only practical solution at present.
 
 =head1 SEE ALSO
 

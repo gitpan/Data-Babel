@@ -309,6 +309,39 @@ sub select_ur {
   my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters,$validate,$nocase)=
     @$args{qw(babel urname input_idtype input_ids output_idtypes filters validate nocase)};
   confess "input_idtype must be set. call select_ur_sanity instead" unless $input_idtype;
+  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
+  if ($main::DEBUG) {
+    diag("---------- select_ur ----------\n");
+    my @keys=keys %$args;
+    diag('arg keys=',join(', ',@keys),"\n");
+    if (grep /input_ids/,@keys) {
+      diag("  input_ids=undef\n") if !defined $input_ids;
+      diag('  input_ids=',join(', ',@$input_ids),"\n") if 'ARRAY' eq ref $input_ids;
+      diag("  input_ids defined but not ARRAY\n") 
+	if defined($input_ids) && 'ARRAY' ne ref $input_ids;
+    } else {
+      diag("  input_ids not present\n");
+    }
+    if (grep /filters/,@keys) {
+      diag("  filters=undef\n") if !defined $filters;
+      diag("  filters defined but not HASH\n") 
+	if defined($filters) && 'HASH' ne ref $filters;
+      if ('HASH' eq ref $filters) {
+	my @filter_keys=keys %$filters;
+	diag('  filter keys=',join(', ',@filter_keys),"\n");
+	# expect one filter in case that's failing. code below hard codes this case
+	if (@filter_keys) {
+	  my $filter_ids=$filters->{$filter_keys[0]};
+	  diag("    filter_ids=undef\n") if !defined $filter_ids;
+	  diag('    filter_ids=',join(', ',@$filter_ids),"\n") if 'ARRAY' eq ref $filter_ids;
+	  diag("    filter_ids defined but not ARRAY\n") 
+	    if defined($filter_ids) && 'ARRAY' ne ref $filter_ids;
+	}
+      }
+    } else {
+      diag("  filters not present\n");
+    }
+  }
   # confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
   $urname or $urname=$args->tablename || 'ur';
   my $input_idtype=ref $input_idtype? $input_idtype->name: $input_idtype;
@@ -326,7 +359,7 @@ sub select_ur {
   my $dbh=$babel->autodb->dbh;
   # NG 10-08-25: removed 'uniq' since duplicate columns are supposed to be kept
   # my @columns=uniq grep {length($_)} ($input_idtype,@output_idtypes);
-  # NG 12-09-04: include filterut_idtypes so we can do filtering in Perl
+  # NG 12-09-04: include filter_idtypes so we can do filtering in Perl
   # NG 12-09-04: test for length obsolete, since input_idtype required
   # my @columns=grep {length($_)} ($input_idtype,@filter_idtypes,@output_idtypes);
   # NG 12-11-20: 0th column is '_X_' if input has history
@@ -337,6 +370,11 @@ sub select_ur {
   my $columns=join(', ',@columns);
   my $sql=qq(SELECT DISTINCT $columns FROM $urname WHERE $columns[0] IS NOT NULL);
   my $table=$dbh->selectall_arrayref($sql);
+  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
+  if ($main::DEBUG) {
+    diag("  $sql\n");
+    diag('  numer of rows from database= '.scalar(@$table));
+  }
   # hang onto valid input ids if doing validate
   # NG 13-06-10: added 'lc' for case insensitive comparisons
   my %valid=map {lc $_->[0]=>1} @$table if $validate;
@@ -344,9 +382,17 @@ sub select_ur {
   # now do filtering. columns are input, filters, then outputs, finally history columns
   my %name2idx=map {$columns[$_]=>$_} 0..$#columns;
   $table=filter_ur($table,0,$input_ids);
+  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
+  if ($main::DEBUG) {
+    diag('  numer of rows after filter_ur input_ids= '.scalar(@$table));
+  }
   for(my $j=0; $j<@filter_idtypes && @$table; $j++) {
     my $filter_ids=$filters->{$filter_idtypes[$j]};
     $table=filter_ur($table,$name2idx{"_X_$columns[$j+1]"}||$j+1,$filter_ids);
+    # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
+    if ($main::DEBUG) {
+      diag("  numer of rows after filter_ur $filter_idtypes[$j]= ".scalar(@$table));
+    }
   }
   # remove filter_idtype columns
   map {splice(@$_,1,@filter_idtypes)} @$table;
@@ -354,12 +400,19 @@ sub select_ur {
   map {splice(@$_,1+@output_idtypes)} @$table;
   # remove duplicate rows. dups can arise when filter columns spliced out
   $table=uniq_rows($table);
-
+  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
+  if ($main::DEBUG) {
+    diag("  numer of rows after uniq_rows= ".scalar(@$table));
+  }
   # NG 10-11-10: remove rows whose output columns are all NULL, because translate now skips these
   # NG 12-09-04: rewrote loop to one-liner below
   # NG 12-11-23: don't remove NULL rows when validate set
   unless ($validate) {
     @$table=grep {my @row=@$_; grep {defined $_} @row[1..$#row]} @$table if @output_idtypes;
+    # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
+    if ($main::DEBUG) {
+      diag("  numer of rows after removing null rows= ".scalar(@$table));
+    }
   } else {
     # %id2valid maps input ids to validity
     # %have_id tells which input ids are in result
@@ -377,6 +430,10 @@ sub select_ur {
   }
   # NG 13-07-15: remove partial duplicates
   $table=remove_pdups($table) unless $args->keep_pdups;
+  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
+  if ($main::DEBUG) {
+    diag("  numer of rows after remove_pdups= ".scalar(@$table));
+  }
   $table;
 }
 
