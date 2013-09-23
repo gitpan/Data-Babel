@@ -60,8 +60,9 @@ sub explicit {
   @_? !$self->implicit(!$_[0]): !$self->implicit;
 }
 # degree is number of MapTables containing this guy's IdType
-# compute degree from IdType
+# compute degree & maptables from IdType
 sub degree {shift->idtype->degree}
+sub maptables {shift->idtype->maptables}
 
 # for compatibility with MapTable. so code can call $xxx->idtypes w/o worrying
 sub idtypes { [shift->idtype] }

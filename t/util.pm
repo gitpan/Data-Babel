@@ -14,9 +14,9 @@ our @ISA=qw(Exporter);
 our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode scripthead 
 	       subtestdir rootpath
 	       as_bool as_list flatten
-	       is_quietly is_loudly cmp_quietly cmp_set_quietly cmp_attrs 
+	       is_quietly is_loudly cmp_quietly cmp_set_quietly cmp_bag_quietly cmp_attrs 
 	       report report_pass report_fail 
-	       called_from group val2idx
+	       called_from callers diag_callers group val2idx
 	     );
 our($SCRIPT,$SCRIPTPATH,$SCRIPTBASENAME,$SCRIPTCODE,$SCRIPTHEAD,$ROOTPATH);
 sub script {$SCRIPT or (($SCRIPT,$SCRIPTPATH)=fileparse($0) and $SCRIPT);}
@@ -24,8 +24,8 @@ sub scriptpath {$SCRIPTPATH or (($SCRIPT,$SCRIPTPATH)=fileparse($0) and $SCRIPTP
 sub scriptfullpath {$FindBin::Bin}
 sub scriptbasename {$SCRIPTBASENAME or 
 		      (($SCRIPTBASENAME)=fileparse($0,qw(.t)) and $SCRIPTBASENAME);}
-sub scriptcode {$SCRIPTCODE or (($SCRIPTCODE)=script=~/\.(\w+)\.t$/)[0];}
-sub scripthead {$SCRIPTHEAD or (($SCRIPTHEAD)=script=~/^(.*?)\.\d+/);}
+sub scriptcode {$SCRIPTCODE or ((($SCRIPTCODE)=script=~/\.(\w+)\.t$/)[0] and $SCRIPTCODE);}
+sub scripthead {$SCRIPTHEAD or (($SCRIPTHEAD)=script=~/^(.*?)\.\d+/ and $SCRIPTHEAD);}
 sub subtestdir {File::Spec->catdir(scriptpath,scriptbasename)}
 sub rootpath {$ROOTPATH or $ROOTPATH=cwd}
 
@@ -57,7 +57,12 @@ sub cmp_quietly {
 # like cmp_set but reports errors the way we want
 sub cmp_set_quietly {
   my($actual,$correct,$label,$file,$line)=@_;
-  cmp_quietly($actual,set(@$correct),$label,$file,$line);
+  cmp_quietly($actual,Test::Deep::set(@$correct),$label,$file,$line);
+}
+# like cmp_bag but reports errors the way we want
+sub cmp_bag_quietly {
+  my($actual,$correct,$label,$file,$line)=@_;
+  cmp_quietly($actual,Test::Deep::bag(@$correct),$label,$file,$line);
 }
 # $actual is object. $correct is HASH of attr=>value pairs wih Test::Deep decorations
 sub cmp_attrs {
@@ -96,8 +101,17 @@ sub report_fail {
   }
   return 0;
 }
+# emit stack trace - $callers set by callers function below
+sub diag_callers {
+  my($callers)=@_;
+  return unless @$callers;
+  for my $caller (@$callers) {
+    my($package,$file,$line)=@$caller;
+    diag("from $file line $line");
+  }
+}
 
-# set $file,$line if not already set
+# set ($file,$line) to last (lowest) caller in main if not already set
 sub called_from {
   return @_ if $_[0];
   my($package,$file,$line);
@@ -106,6 +120,49 @@ sub called_from {
     last if 'main' eq $package;
   }
   ($file,$line);
+}
+# set $callers if not already set 
+# $what controls what is reported: 
+#  default - 'mqin' - all callers in main
+#  'all' - entire stack trace
+#  'main' all callers in main
+#  'top' - 1st caller in main
+#  'last' - last caller in main - same as default
+# in scalar context, returns ARRAY of ARRAYs [$package,$file,$line]
+# in array context: default, 'top', 'last' return ($file,$line)
+#                   others return array of ARRAYs [$package,$file,$line]
+sub callers {
+  # figure out arguments: 
+  my($callers,$what,$package,$file,$line);
+  if (@_ && 'ARRAY' eq ref $_[0]) {
+    # arg is $callers
+    ($callers,$what)=@_;
+    $callers=undef unless @$callers; # empty $callers same as not set
+  } elsif (@_==2 && !ref $_[0]) {
+    # args are $file,$line
+    ($file,$line)=@_;
+    $callers=[[undef,$file,$line]] if defined $file;
+  } elsif (@_>2 && !ref $_[0]) {
+    # args are $file,$line,$what
+    ($file,$line,$what)=@_;
+    $callers=[[undef,$file,$line]] if defined $file;
+  }
+  $what='main' unless defined $what;
+  unless (defined $callers) {
+    $callers=[];
+    my $i=0;
+    while (($package,$file,$line)=caller($i++)) {
+      $callers=[[$package,$file,$line]], last if $what eq 'last' && $package eq 'main';
+      push(@$callers,[$package,$file,$line]) 
+	if $what eq 'all' || ($what eq 'main' && $package eq 'main');
+    }
+    $callers=[[$package,$file,$line]] if $what eq 'top';
+  }
+  if (wantarray && ($what eq 'top' || $what eq 'last')) {
+    ($package,$file,$line)=@{$callers->[0]};
+    return ($file,$line);
+  }
+  wantarray? @$callers: $callers;
 }
 
 ################################################################################

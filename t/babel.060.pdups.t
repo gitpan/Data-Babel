@@ -20,6 +20,8 @@ my @OPTIONS=qw(bundle=s graph_type=s arity=i link_type=s num_maptables=i num_gro
 	       keep_pdups
 	       pdups_group_cutoffs=s pdups_prefixmatcher_cutoffs=s pdups_prefixmatcher_classes=s);
 # defaults make a binary tree of depth 3 with reasonable sized db
+#   and test default PrefixMatcher (Trie)
+# set --pdups_prefixmatcher_classes='all' to test all choices
 my %DEFAULTS=(bundle=>'install',
 	      graph_type=>'tree',arity=>2,link_type=>'star',num_maptables=>7,num_groups=>1);
 
@@ -152,8 +154,13 @@ sub get_options {
   $OPTIONS{pdups_prefixmatcher_cutoffs}=[undef,@$cutoffs];
 
   my $classes=$OPTIONS{pdups_prefixmatcher_classes};
-  $classes=$full? [undef,qw(Trie BinarySearchTree BinarySearchList PrefixHash)]: [undef]
-    unless defined $classes;
+  # NG 13-09-18: set --pdups_prefixmatcher_classes='all' to test all choices
+  my $all=[undef,qw(Trie BinarySearchTree BinarySearchList PrefixHash)];
+  if (!defined $classes) {
+    $classes=$full? $all: [undef];
+  } else {
+    $classes=$all if grep /^all$/i,@$classes;
+  }
   $OPTIONS{pdups_prefixmatcher_classes}=$classes;
 
   new Hash::AutoHash %OPTIONS;

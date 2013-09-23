@@ -644,8 +644,8 @@ sub check_masters_sanity {
 # 1) reports errors the way we want them
 # 2) sorts the args to avoid Test::Deep's 'bag' which is ridiculously slow...
 sub cmp_objects {
-  my($actual,$correct,$label,$file,$line,$limit)=@_;
-  my $ok=cmp_objects_quietly($actual,$correct,$label,$file,$line,$limit);
+  my($actual,$correct,$label,$file,$line)=@_;
+  my $ok=cmp_objects_quietly($actual,$correct,$label,$file,$line);
   report_pass($ok,$label);
 }
 sub cmp_objects_quietly {

@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.13_03';
+our $VERSION='1.13_04';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -67,6 +67,8 @@ sub _init_self {
   # TODO: remove this hack when Class::AutoClass bug fixed
   $self=$self->{__OVERRIDE__} if $self->{__OVERRIDE__};
 
+  # NG 13-09-23: move creation of implicit Master objects to here
+  $self->make_implicit_masters;
   # connect component objects to Babel
   for my $component_attr (qw(idtypes masters maptables)) {
     map {$_->babel($self)} @{$self->$component_attr};
@@ -74,6 +76,7 @@ sub _init_self {
   # connect Masters to their IdTypes & vice versa
   map {$_->connect_idtype} @{$self->masters};
   map {$_->idtype->connect_master} @{$self->masters};
+
   # NG 13-06-11: check for unkown IdTypes before connecting to MapTables
   my @unknowns=uniq(map {$_->unknown_idtypes} @{$self->maptables});
   confess "Unknown IdType(s) appear in MapTables: ",join(', ',@unknowns) if @unknowns;
@@ -88,8 +91,12 @@ sub _init_self {
     join(', ',map {$_->name} @isolateds) if @isolateds;
   # create schema graph
   $self->schema_graph;
-  # make implicit masters and connect them up
-  $self->make_implicit_masters;
+  # NG 13-09-23: creation of implicit Masters moved up
+  # # make implicit masters and connect them up
+  # $self->make_implicit_masters;
+  # NG 13-09-23: set view & query attributes for implicit Masters
+  $self->setup_implicit_masters;
+
   # store Babel and component objects
   # NG 10-08-24: only store if autodb set
   if (my $autodb=$self->autodb) {
@@ -592,48 +599,75 @@ sub pdups_prefixmatcher_class {
 
 ########################################
 
-# make implicit masters
+# NG 13-09-23: handle implicit Masters made by application
 #   every IdType needs a Master. if Master not defined explicitly, define it here
 #   if IdType joins 2 or more MapTables, Master is TABLE (UNION over MapTables)
 #   if IdType contained in 1 MapTable, Master is VIEW
-# NG 10-11-10: added clauses to exclude NULLs
-# NG 13-06-11: renamed to make_implicit_masters
 sub make_implicit_masters {
   my $self=shift;
-  my $schema_graph=$self->schema_graph;
-  my %idtype2master=map {$_->idtype->name => $_} @{$self->masters};
-  my @need_imps=grep {!$idtype2master{$_->name}} @{$self->idtypes};
-  for my $idtype (@need_imps) {
-    my $idtype_name=$idtype->name;
-    my @maptables=map {$self->id2object($_)} $schema_graph->neighbors($idtype->id);
-    my $view=@maptables==1? 1: 0;
-    my $inputs=join("\n",map {$_->namespace.'/'.$_->name} @maptables);
-    my $query=$view? 
-      "SELECT DISTINCT $idtype_name FROM ".$maptables[0]->name." WHERE $idtype_name IS NOT NULL" :
-      join("\nUNION\n",
-	   map {"SELECT $idtype_name FROM ".$_->name." WHERE $idtype_name IS NOT NULL"}
-	   @maptables);
-    my $master=new Data::Babel::Master
-      (name=>$idtype->name.'_master',implicit=>1,
-       inputs=>$inputs,query=>$query,view=>$view,
-       babel=>$self,idtype=>$idtype);
-    push(@{$self->masters},$master); # connect new Master to Babel
-    $self->name2master($master);     # add new Master to name hash
-    $idtype->master($master);	     # connect new Master to its IdType
+  my $masters=$self->masters;
+  for my $idtype (@{$self->idtypes}) {
+    my $master_name=$idtype->name.'_master';
+    next if $self->name2master($master_name); # Master object already exists
+    my $master=new Data::Babel::Master(name=>$master_name,implicit=>1);
+    push(@$masters,$master);	 # add to Babel's list of Masters
+    $self->name2master($master); # add to name hash
   }
 }
+# NG 13-09-23: set view & query for all implicit Masters
+# must run after IdTypes and Masters connected!
+sub setup_implicit_masters {
+  my $self=shift;
+  my @implicits=grep {$_->implicit} @{$self->masters};
+  for my $master (@implicits) {
+    my $idtype=$master->idtype;
+    my $column_name=$idtype->name;
+    my @maptables=@{$master->maptables};
+    my $view=@maptables==1? 1: 0;
+    # my $inputs=join("\n",map {$_->namespace.'/'.$_->name} @maptables);
+    my $query=$view? 
+      "SELECT DISTINCT $column_name FROM ".$maptables[0]->name." WHERE $column_name IS NOT NULL" :
+      join("\nUNION\n",
+	   map {"SELECT $column_name FROM ".$_->name." WHERE $column_name IS NOT NULL"}
+	   @maptables);
+    $master->set(view=>$view,query=>$query);
+  }
+}
+#   my $schema_graph=$self->schema_graph;
+#   # NG 13-09-23: handle implicit Masters made by application.
+#   #              original code handles IdTypes without Masters but neglects ones made already 
+#   my %idtype2master=map {$_->idtype->name => $_} @{$self->masters};
+#   my @need_imps=grep {!$idtype2master{$_->name}} @{$self->idtypes};
+#   for my $idtype (@need_imps) {
+#     my $idtype_name=$idtype->name;
+#     my @maptables=map {$self->id2object($_)} $schema_graph->neighbors($idtype->id);
+#     my $view=@maptables==1? 1: 0;
+#     my $inputs=join("\n",map {$_->namespace.'/'.$_->name} @maptables);
+#     my $query=$view? 
+#       "SELECT DISTINCT $idtype_name FROM ".$maptables[0]->name." WHERE $idtype_name IS NOT NULL" :
+#       join("\nUNION\n",
+# 	   map {"SELECT $idtype_name FROM ".$_->name." WHERE $idtype_name IS NOT NULL"}
+# 	   @maptables);
+#     my $master=new Data::Babel::Master
+#       (name=>$idtype->name.'_master',implicit=>1,
+#        inputs=>$inputs,query=>$query,view=>$view,
+#        babel=>$self,idtype=>$idtype);
+#     push(@{$self->masters},$master); # connect new Master to Babel
+#     $self->name2master($master);     # add new Master to name hash
+#     $idtype->master($master);	     # connect new Master to its IdType
+#   }
+# }
+
 # NG 12-09-27: added load_implicit_masters
 sub load_implicit_masters {
   my $self=shift;
   my $dbh=$self->dbh;
   my @implicits=grep {$_->implicit} @{$self->masters};
   for my $master (@implicits) {
-    my $tablename=$master->tablename;
+    my($view,$query,$tablename)=$master->get(qw(view query tablename));
     my $idtype=$master->idtype;
-    my $column_name=$idtype->name;
-    my $column_sql_type=$idtype->sql_type;
-    my $query=$master->query;
-    my $sql=$master->view?
+    my($column_name,$column_sql_type)=$idtype->get(qw(name sql_type));
+    my $sql=$view?
       qq(CREATE VIEW $tablename): 
 	qq(CREATE TABLE $tablename ($column_name $column_sql_type));
     $sql.=" AS\n$query";
@@ -1979,34 +2013,35 @@ L<"Technical details">.
 
  Title   : new 
  Usage   : $filter=new Data::Babel::Filter
+                       babel=>$babel,
                        filter_idtype=>'gene_symbol',
                        conditions=>["Htt",\"LIKE 'casp%'"]
  Function: Create new Data::Babel::Filter object representing the coditions. 
  Returns : Data::Babel::Filter object
- Args    : condtions      see below
+ Args    : babel          Data::Babel object connected to database
+           condtions      see below
            filter_idtype  default IdType for conditions. Can be name of 
-                          Data::Babel::IdType object or object
+                          Data::Babel::IdType object or object.
            filter_idtypes ARRAY of IdTypes used by conditions. Can be names of
                           Data::Babel::IdType objects or objects
-           allow_embedded_idtypes
-                          boolean. If true, IdTypes (as names) may be embedded 
-                          in the conditions; see details below. default: true
+           allow_sql      boolean. Controls whether it is legal to pass SQL
+                          fragments to 'new'. default: true
            embedded_idtype_marker
                           perfix marking an embedded IdType name. default: ':'
            treat_string_as
                           indicator telling how to interpret strings in
-                          "conditions" Choices: 'id', 'sql'. default: 'id'
+                          "conditions" Choices: 'id', 'sql', undef (restores
+                          default). default: 'id'
            treat_stringref_as
                           indicator telling how to interpret references to 
-                          strings in "conditions" Choices: 'sql', 'id'.
-                          default: 'sql' 
-           prepend_idtype_to
-                          indicator telling when to prepend the "filter_idtype"
+                          strings in "conditions" Choices: 'sql', 'id', undef
+                          (restores default). default: 'sql' 
+           prepend_idtype indicator telling when to prepend the "filter_idtype"
                           arg to SQL fragments contained in "conditions". 
-                          Choices: 'auto', 'string', 'reference', 'all', 'none'. 
-                          default: 'auto'
- Notes   : "conditons" is required. "filter_idtype" also usually specified in
-           typical usage. Other args are rarely used.
+                          Choices: 'auto', other true value, any false value.
+                          See below. default: 'auto'
+ Notes   : babel and conditons required. filter_idtype also usually specified.
+           Other args rarely used.
 
 =head2 attributes
 
@@ -2059,8 +2094,7 @@ strings as SQL fragments.  You can change this via the
 
 By default, we prepend the "filter_idtype" argument to SQL fragments
 unless an embedded IdType (with or without a name) is the first thing
-in the fragment. You can change this via the "prepend_idtype_to"
-argument.  For example, if "filter_idtye" is "gene_symbol", you can
+in the fragment. For example, if "filter_idtye" is "gene_symbol", you can
 express the SQL clause
 
   gene_symbol LIKE 'casp%'
@@ -2070,6 +2104,10 @@ with any of these fragments
  LIKE 'casp%'
  : LIKE 'casp%'
  :gene_symbol LIKE 'casp%'
+
+You can change the prepending behavior via the "prepend_idtype"
+argument. If set to any true value except 'auto' we always prepend,
+and if false we never prepend.
 
 The "conditions" argument can contain arbitrarily complex SQL, but we
 expect most cases to be simple. Simple cases, like the example above,

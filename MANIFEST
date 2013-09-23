@@ -9,6 +9,7 @@ examples/README
 lib/Data/Babel.pm
 lib/Data/Babel/Base.pm
 lib/Data/Babel/Config.pm
+lib/Data/Babel/Filter.pm
 lib/Data/Babel/HAH_MultiValued.pm
 lib/Data/Babel/IdType.pm
 lib/Data/Babel/MapTable.pm
@@ -33,6 +34,17 @@ t/babel.009.util.t
 t/babel.010.basics.t
 t/babel.012.internal_idtype.t
 t/babel.014.schema.t
+t/babel.016.filter_object.t
+t/babel.016.filter_object/filter_object.010.attributes.t
+t/babel.016.filter_object/filter_object.020.main.t
+t/babel.016.filter_object/filter_object.030.mechanics.t
+t/babel.016.filter_object/filter_object.040.sql.t
+t/babel.016.filter_object/filter_object.data.ini
+t/babel.016.filter_object/filter_object.idtype.ini
+t/babel.016.filter_object/filter_object.maptable.ini
+t/babel.016.filter_object/filter_object.master.ini
+t/babel.016.filter_object/filter_object.pm
+t/babel.017.filter_mechanics.t
 t/babel.020.persist.t
 t/babel.020.persist/handcrafted.idtype.ini
 t/babel.020.persist/handcrafted.maptable.ini
@@ -117,6 +129,7 @@ t/babel.116.apostrophe/apostrophe.maptable.ini
 t/babel.116.apostrophe/apostrophe.maptable_syn.ini
 t/babel.116.apostrophe/apostrophe.master.ini
 t/babel.116.apostrophe/apostrophe.master_syn.ini
+t/babel.117.implicit.t
 t/Build.pm
 t/handcrafted.data.ini
 t/handcrafted.idtype.ini

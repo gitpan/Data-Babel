@@ -1,13 +1,24 @@
 Revision history for Data-Babel
 
+1.13_03 2013-09-23
+        Bug fixes
+        - 'implicit masters' bug: implicit master created in application and 
+	  passed into Babel constructor not processed by make_implicit_masters
+	  and thus not set up properly
+	Still trying to track down FAILs seen by David Cantrell
+	  (reports 34101829, 34102877, 34457224)
+	Also includes code and tests for Filter object and code stub for
+	  testing translate with Filter object, but translate not yet ported to
+	  Filter object
+
 1.13_03 2013-09-17
 	Another debugging release to track down FAILs seen by David Cantrell
-	(reports 34101829, 34102877, 34457224)
+	  (reports 34101829, 34102877, 34457224)
 	Also includes documentation for new translate filters
 
 1.13_02 2013-09-15
 	This is a debugging release to track down FAILs seen by David Cantrell
-	(reports 34101829, 34102877)	
+	  (reports 34101829, 34102877)	
 
 1.13_01 2013-09-02
 	New features

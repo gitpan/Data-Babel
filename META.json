@@ -20,6 +20,7 @@
             "Carp" : "1.2",
             "Class::AutoClass" : "1.55",
             "Class::AutoDB" : "1.26",
+            "Clone" : "0.35",
             "Config::IniFiles" : "2.57",
             "Cwd" : "3.26",
             "DBD::mysql" : "4.022",
@@ -55,7 +56,7 @@
       },
       "runtime" : {
          "recommends" : {
-            "List::BinarySearch" : "0.11",
+            "List::BinarySearch" : "0.13",
             "Tree::RB" : "0.500003"
          },
          "requires" : {
@@ -72,6 +73,7 @@
             "Hash::AutoHash" : "1.16",
             "Hash::AutoHash::Args" : "1.16",
             "Hash::AutoHash::MultiValued" : "1.16",
+            "List::Categorize" : "0.03",
             "List::MoreUtils" : "0.33",
             "Template" : "2.22",
             "Tie::ToObject" : "0.03",
@@ -82,7 +84,7 @@
    "provides" : {
       "Data::Babel" : {
          "file" : "lib/Data/Babel.pm",
-         "version" : "1.13_03"
+         "version" : "1.13_04"
       },
       "Data::Babel::Base" : {
          "file" : "lib/Data/Babel/Base.pm",
@@ -90,6 +92,10 @@
       },
       "Data::Babel::Config" : {
          "file" : "lib/Data/Babel/Config.pm",
+         "version" : 0
+      },
+      "Data::Babel::Filter" : {
+         "file" : "lib/Data/Babel/Filter.pm",
          "version" : 0
       },
       "Data::Babel::HAH_MultiValued" : {
@@ -147,5 +153,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.13_03"
+   "version" : "1.13_04"
 }

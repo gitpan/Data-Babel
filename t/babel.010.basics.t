@@ -336,7 +336,11 @@ cmp_table($actual,$correct,'translate with undef filters arg');
 my $actual=$babel->translate
   (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
    filters=>{},output_idtypes=>[qw(type_002 type_003 type_004)]);
-cmp_table($actual,$correct,'translate with empty filters arg');
+cmp_table($actual,$correct,'translate with empty filters HASH');
+my $actual=$babel->translate
+  (input_idtype=>'type_001',input_ids=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>[],output_idtypes=>[qw(type_002 type_003 type_004)]);
+cmp_table($actual,$correct,'translate with empty filters ARRAY');
 
 # NG 12-09-22: added ARRAY of filters
 my $correct=prep_tabledata($data->basics_filter->data);

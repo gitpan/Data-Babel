@@ -21,7 +21,10 @@ package Data::Babel::PrefixMatcher::BinarySearchList;
 #   values are row indexes - code will work for ARRAY of anything
 use strict;
 use Carp;
-use List::BinarySearch qw(bsearch_str_pos);
+# NG 13-09-18: List::BinarySearch v0.12 introduces 'binsearch_pos' function
+#              and deprecates 'bsearch_str_pos'. the latter will go away soon.
+# use List::BinarySearch qw(bsearch_str_pos);
+use List::BinarySearch qw(binsearch_pos);
 use List::MoreUtils qw(uniq before);
 use vars qw(@AUTO_ATTRIBUTES %DEFAULTS);
 use base qw(Data::Babel::PrefixMatcher);
@@ -53,7 +56,14 @@ sub get_data {
   my($keys,$values)=$self->get(qw(keys values)); 
   my $key=join($;,before {!defined $_} @$row);
   my $length=@$keys;
-  my $insertion_point=$self->insertion_point(bsearch_str_pos($key,@$keys));
+  # NG 13-09-18: List::BinarySearch v0.12 introduces 'binsearch_pos' function
+  #              and deprecates 'bsearch_str_pos'. the latter will go away soon.
+  # my $insertion_point=$self->insertion_point(bsearch_str_pos($key,@$keys));
+  # my $insertion_point=
+  #   $self->insertion_point
+  #     (List::BinarySearch->VERSION<0.12? List::BinarySearch::bsearch_str_pos($key,@$keys):
+  #      List::BinarySearch::binsearch_pos {$a cmp $b} $key,@$keys);
+  my $insertion_point=$self->insertion_point(binsearch_pos {$a cmp $b} $key,@$keys);
   my @data;
   for (my $i=$insertion_point; $i<$length; $i++) {
     last unless $keys->[$i]=~/^$key/;
