@@ -12,7 +12,7 @@ use Math::BaseCalc;
 use Text::Abbrev;
 use Class::AutoDB;
 use Data::Babel;
-use Benchmark qw(:hireswallclock);
+# use Benchmark qw(:hireswallclock);
 use Test::More;
 use strict;
 

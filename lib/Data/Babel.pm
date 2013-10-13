@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.13_04';
+our $VERSION='1.13_07';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -80,7 +80,9 @@ sub _init_self {
   # NG 13-06-11: check for unkown IdTypes before connecting to MapTables
   my @unknowns=uniq(map {$_->unknown_idtypes} @{$self->maptables});
   confess "Unknown IdType(s) appear in MapTables: ",join(', ',@unknowns) if @unknowns;
-  # connect MapTables to their IdTypes and vice versa
+  # reset maptables attribute for idtypes in case recycled from previous Babel
+  # then connect MapTables to their IdTypes and vice versa
+  map {$_->maptables([])} @{$self->idtypes};
   map {$_->connect_idtypes} @{$self->maptables};
   for my $maptable (@{$self->maptables}) {
     map {$_->add_maptable($maptable)} @{$maptable->idtypes};

@@ -130,6 +130,7 @@ t/babel.116.apostrophe/apostrophe.maptable_syn.ini
 t/babel.116.apostrophe/apostrophe.master.ini
 t/babel.116.apostrophe/apostrophe.master_syn.ini
 t/babel.117.implicit.t
+t/babel.118.recycled_idtype.t
 t/Build.pm
 t/handcrafted.data.ini
 t/handcrafted.idtype.ini

@@ -21,11 +21,11 @@ use vars qw(@AUTO_ATTRIBUTES @OTHER_ATTRIBUTES @CLASS_ATTRIBUTES %SYNONYMS %DEFA
 use base qw(Data::Babel::Base);
 
 # babel, name, id, autodb, verbose - methods defined in Base
-@AUTO_ATTRIBUTES=qw(master referent defdb meta format sql_type internal _maptables);
-@OTHER_ATTRIBUTES=qw(display_name maptables external tablename history);
+@AUTO_ATTRIBUTES=qw(master maptables referent defdb meta format sql_type internal);
+@OTHER_ATTRIBUTES=qw(display_name external tablename history);
 @CLASS_ATTRIBUTES=qw();
 %SYNONYMS=(perl_format=>'format');
-%DEFAULTS=(_maptables=>{});
+%DEFAULTS=(maptables=>[]);
 %AUTODB=
   (-collection=>'IdType',
    -keys=>qq(name string,display_name string,referent string,defdb string,meta string,
@@ -46,19 +46,9 @@ sub connect_master {
   }
 }
 # must run after Babel initialized
-# NG 13-09-23: when re-using IdType in new Babel, duplicates can arise
 sub add_maptable {
-  my($self,$maptable)=@_;
-  $self->_maptables->{$maptable->name}=$maptable;
-}
-# NG 13-09-23: when re-using IdType in new Babel, duplicate maptables can arise
-sub maptables {
-  my $self=shift;
-  if (@_) {
-    my %maptables=map {$_->name=>$_} @{$_[0]};
-    $self->{_maptables}=\%maptables;
-  }
-  [values %{$self->{_maptables}}];
+  # my($self,$maptable)=@_;
+  push(@{shift->maptables},shift);
 }
 # degree is number of MapTables containing this IdType
 sub degree {scalar @{shift->maptables}}

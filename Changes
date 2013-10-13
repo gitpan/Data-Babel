@@ -1,10 +1,35 @@
 Revision history for Data-Babel
 
-1.13_03 2013-09-23
+1.13_07 2013-10-13
+	Diagnosed FAILs seen by David Cantrell. Caused by MySQL bug in duplicate
+	  removal (SELECT DISTINCT) with repeated output columns. Bug present in
+	  MySQL 5.0.32, fixed in or before 5.0.86
+	Test changes
+	  - Added test for MySQL bug in duplicate removal (SELECT DISTINCT) with 
+	    repeated output column in 000.reqs
+	  - Removed debugging code for FAILs seen by David Cantrell
+
+1.13_06 2013-10-05
+	Still working on David's FAILs
+
+1.13_05 2013-09-29
+	New features
+	- More complex filters for translate and related methods
+	Updated depdendencies
         Bug fixes
-        - 'implicit masters' bug: implicit master created in application and 
-	  passed into Babel constructor not processed by make_implicit_masters
-	  and thus not set up properly
+        - maptables attribute of recycled idtype not reset
+	Still trying to track down FAILs seen by David Cantrell
+	  (reports 34101829, 34102877, 34457224)
+	Test changes
+	- More test cleanup subsequent to fixing of 'implicit masters' bug
+        - Fixed boilerplate & pod tests
+
+
+1.13_04 2013-09-23
+        Bug fixes
+        - Implicit master created in application and passed into Babel
+	  constructor not processed by make_implicit_masters and thus not set up
+	  properly
 	Still trying to track down FAILs seen by David Cantrell
 	  (reports 34101829, 34102877, 34457224)
 	Also includes code and tests for Filter object and code stub for

@@ -5,6 +5,7 @@ use FindBin;
 use File::Basename qw(fileparse);
 use File::Spec;
 use Cwd qw(cwd);
+use Scalar::Util qw(blessed);
 use Test::More;
 use Test::Deep qw(cmp_details deep_diag methods set);
 use Exporter();
@@ -14,7 +15,8 @@ our @ISA=qw(Exporter);
 our @EXPORT=qw(script scriptpath scriptfullpath scriptbasename scriptcode scripthead 
 	       subtestdir rootpath
 	       as_bool as_list flatten
-	       is_quietly is_loudly cmp_quietly cmp_set_quietly cmp_bag_quietly cmp_attrs 
+	       is_quietly is_loudly isa_ok_quietly 
+	       cmp_quietly cmp_set_quietly cmp_bag_quietly cmp_attrs 
 	       report report_pass report_fail 
 	       called_from callers diag_callers group val2idx
 	     );
@@ -44,6 +46,16 @@ sub is_loudly {
 sub is_quietly {
   my($actual,$correct,$label,$file,$line)=@_;
   report_fail($actual eq $correct,"$label: expected $correct, got $actual",$file,$line);
+}
+# like isa_ok but reports errors the way we want
+sub isa_ok_quietly {
+  my($actual,$correct_class,$label,$file,$line)=@_;
+  $label="$label - isa $correct_class";
+  my $actual_class=blessed($actual);
+  report_fail(defined $actual_class,$label,$file,$line,'not blessed') or return 0;
+  report_fail($actual->isa($correct_class),$label,$file,$line,
+	      "isn't a '$correct_class' is a '$actual_class'") or return 0;
+  1;
 }
 
 # like cmp_deeply but reports errors the way we want

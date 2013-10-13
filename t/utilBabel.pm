@@ -36,7 +36,9 @@ sub check_object_basics {
   my($object,$class,$name,$label)=@_;
   report_fail($object,"$label connected object defined") or return 0;
   $object->name;		# touch object in case still Oid
-  report_fail(UNIVERSAL::isa($object,$class),"$label: class") or return 0;
+  # NG 13-09-24: changed to isa_ok_quietly
+  # report_fail(UNIVERSAL::isa($object,$class),"$label: class") or return 0;
+  isa_ok_quietly($object,$class,$label) or return 0;
   report_fail($object->name eq $name,"$label: name") or return 0;
   return 1;
 }
@@ -309,39 +311,6 @@ sub select_ur {
   my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters,$validate,$nocase)=
     @$args{qw(babel urname input_idtype input_ids output_idtypes filters validate nocase)};
   confess "input_idtype must be set. call select_ur_sanity instead" unless $input_idtype;
-  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-  if ($main::DEBUG) {
-    diag("---------- select_ur ----------\n");
-    my @keys=keys %$args;
-    diag('arg keys=',join(', ',@keys),"\n");
-    if (grep /input_ids/,@keys) {
-      diag("  input_ids=undef\n") if !defined $input_ids;
-      diag('  input_ids=',join(', ',@$input_ids),"\n") if 'ARRAY' eq ref $input_ids;
-      diag("  input_ids defined but not ARRAY\n") 
-	if defined($input_ids) && 'ARRAY' ne ref $input_ids;
-    } else {
-      diag("  input_ids not present\n");
-    }
-    if (grep /filters/,@keys) {
-      diag("  filters=undef\n") if !defined $filters;
-      diag("  filters defined but not HASH\n") 
-	if defined($filters) && 'HASH' ne ref $filters;
-      if ('HASH' eq ref $filters) {
-	my @filter_keys=keys %$filters;
-	diag('  filter keys=',join(', ',@filter_keys),"\n");
-	# expect one filter in case that's failing. code below hard codes this case
-	if (@filter_keys) {
-	  my $filter_ids=$filters->{$filter_keys[0]};
-	  diag("    filter_ids=undef\n") if !defined $filter_ids;
-	  diag('    filter_ids=',join(', ',@$filter_ids),"\n") if 'ARRAY' eq ref $filter_ids;
-	  diag("    filter_ids defined but not ARRAY\n") 
-	    if defined($filter_ids) && 'ARRAY' ne ref $filter_ids;
-	}
-      }
-    } else {
-      diag("  filters not present\n");
-    }
-  }
   # confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
   $urname or $urname=$args->tablename || 'ur';
   my $input_idtype=ref $input_idtype? $input_idtype->name: $input_idtype;
@@ -370,11 +339,6 @@ sub select_ur {
   my $columns=join(', ',@columns);
   my $sql=qq(SELECT DISTINCT $columns FROM $urname WHERE $columns[0] IS NOT NULL);
   my $table=$dbh->selectall_arrayref($sql);
-  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-  if ($main::DEBUG) {
-    diag("  $sql\n");
-    diag('  numer of rows from database= '.scalar(@$table));
-  }
   # hang onto valid input ids if doing validate
   # NG 13-06-10: added 'lc' for case insensitive comparisons
   my %valid=map {lc $_->[0]=>1} @$table if $validate;
@@ -382,17 +346,9 @@ sub select_ur {
   # now do filtering. columns are input, filters, then outputs, finally history columns
   my %name2idx=map {$columns[$_]=>$_} 0..$#columns;
   $table=filter_ur($table,0,$input_ids);
-  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-  if ($main::DEBUG) {
-    diag('  numer of rows after filter_ur input_ids= '.scalar(@$table));
-  }
   for(my $j=0; $j<@filter_idtypes && @$table; $j++) {
     my $filter_ids=$filters->{$filter_idtypes[$j]};
     $table=filter_ur($table,$name2idx{"_X_$columns[$j+1]"}||$j+1,$filter_ids);
-    # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-    if ($main::DEBUG) {
-      diag("  numer of rows after filter_ur $filter_idtypes[$j]= ".scalar(@$table));
-    }
   }
   # remove filter_idtype columns
   map {splice(@$_,1,@filter_idtypes)} @$table;
@@ -400,19 +356,12 @@ sub select_ur {
   map {splice(@$_,1+@output_idtypes)} @$table;
   # remove duplicate rows. dups can arise when filter columns spliced out
   $table=uniq_rows($table);
-  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-  if ($main::DEBUG) {
-    diag("  numer of rows after uniq_rows= ".scalar(@$table));
-  }
+
   # NG 10-11-10: remove rows whose output columns are all NULL, because translate now skips these
   # NG 12-09-04: rewrote loop to one-liner below
   # NG 12-11-23: don't remove NULL rows when validate set
   unless ($validate) {
     @$table=grep {my @row=@$_; grep {defined $_} @row[1..$#row]} @$table if @output_idtypes;
-    # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-    if ($main::DEBUG) {
-      diag("  numer of rows after removing null rows= ".scalar(@$table));
-    }
   } else {
     # %id2valid maps input ids to validity
     # %have_id tells which input ids are in result
@@ -430,10 +379,6 @@ sub select_ur {
   }
   # NG 13-07-15: remove partial duplicates
   $table=remove_pdups($table) unless $args->keep_pdups;
-  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-  if ($main::DEBUG) {
-    diag("  numer of rows after remove_pdups= ".scalar(@$table));
-  }
   $table;
 }
 
@@ -850,7 +795,8 @@ sub check_handcrafted_idtypes {
     report_fail(UNIVERSAL::isa($actual,$class),"$label object $i: class") or return 0;
     report_fail($actual->name eq "type_$suffix","$label object $i: name") or return 0;
     report_fail($actual->id eq "idtype:type_$suffix","$label object $i: id") or return 0;
-    report_fail($actual->display_name eq "display_name_$suffix","$label object $i: display_name") or return 0;
+    report_fail($actual->display_name eq "display_name_$suffix",
+		"$label object $i: display_name") or return 0;
     report_fail($actual->referent eq "referent_$suffix","$label object $i: referent") or return 0;
     report_fail($actual->defdb eq "defdb_$suffix","$label object $i: defdb") or return 0;
     report_fail($actual->meta eq "meta_$suffix","$label object $i: meta") or return 0;
@@ -859,9 +805,21 @@ sub check_handcrafted_idtypes {
     report_fail(as_bool($actual->internal)==0,"$label object $i: internal") or return 0;
     report_fail(as_bool($actual->external)==1,"$label object $i: external") or return 0;
     if ($mature) {
-      check_object_basics($actual->babel,'Data::Babel','test',"$label object $i babel");
+      my $babel=$actual->babel;
+      check_object_basics($babel,'Data::Babel','test',"$label object $i babel");
       check_object_basics($actual->master,'Data::Babel::Master',
 			  "type_${suffix}_master","$label object $i master");
+      # NG 13-09-24: added tests for maptables
+      my $maptables=$actual->maptables;
+      map {isa_ok_quietly($_,'Data::Babel::MapTable',"$label object $i maptable")} @{$maptables}
+	or return 0;
+      my @correct_maptables=
+	($suffix eq '001'? map {$babel->name2maptable("maptable_$_")} qw(001):
+	 ($suffix eq '002'? map {$babel->name2maptable("maptable_$_")} qw(001 002): 
+	  ($suffix eq '003'? map {$babel->name2maptable("maptable_$_")} qw(002 003): 
+	   ($suffix eq '004'? map {$babel->name2maptable("maptable_$_")} qw(003):
+	    confess "Unexpected suffix $suffix"))));
+      cmp_bag_quietly($maptables,\@correct_maptables,"$label object $i maptables") or return 0;
     }
   }
   pass($label);
@@ -881,64 +839,21 @@ sub check_handcrafted_masters {
     my $suffix='00'.($i+1);
     my $name="type_${suffix}_master";
     my $id="master:$name";
-    # masters 2&3 are implicit, hence some of their content is special
-    my($inputs,$namespace,$query,$view,$implicit);
     # NG 13-09-02: DEPRECATED workflow related attributes
-    if ($i<2) {
-      # $inputs="MainData/table_$suffix";
-      # $namespace="ConnectDots";
-      # $query="SELECT col_$suffix AS type_$suffix FROM table_$suffix";
-      $view=0;
-      $implicit=0;
-    } else {
-      # $namespace='';		# namespace not in input config file, but hopefully set in output
-      $implicit=1;
-      if ($i==2) {
-	# $inputs="ConnectDots/maptable_003 ConnectDots/maptable_002";
-	# NG 10-11-10: added clause to exclude NULLs
-# 	$query=<<QUERY
-# 	SELECT type_003 FROM maptable_003
-# 	UNION
-# 	SELECT type_003 FROM maptable_002
-# QUERY
-# 	$query=<<QUERY
-# 	SELECT type_003 FROM maptable_003 WHERE type_003 IS NOT NULL
-# 	UNION
-# 	SELECT type_003 FROM maptable_002 WHERE type_003 IS NOT NULL
-# QUERY
-#   ;
-	$view=0;
-      } elsif ($i==3) {
-	# $inputs="ConnectDots/maptable_003";
-	# NG 10-11-10: added clause to exclude NULLs
-	# $query="SELECT DISTINCT type_004 FROM maptable_003";
-	# $query="SELECT DISTINCT type_004 FROM maptable_003 WHERE type_004 IS NOT NULL";
+    my($query,$view,$implicit);
+    # masters 2&3 are implicit, hence some of their content is special
+    if ($i>=2) {
+      $implicit=1; $query=1;
+      if ($i==3) {
 	$view=1;      
       }}
-
-    report_fail(UNIVERSAL::isa($actual,$class),"$label object $i: class") or return 0;
+    isa_ok_quietly($actual,$class,"$label object $i: class") or return 0;
     report_fail($actual->name eq $name,"$label object $i: name") or return 0;
     report_fail($actual->id eq $id,"$label object $i: id") or return 0;
-    # NG 13-06-12: compare as sets 'cuz perl 5.18 no longer preserves order
-    # report_fail(scrunched_eq($actual->inputs,$inputs),"$label object $i: inputs") or return 0;
-    # report_fail(cmp_set_quietly(as_list($actual->inputs),as_list($inputs)),
-    # 		"$label object $i: inputs")
-    #   or return 0;
-    # report_fail(scrunched_eq($actual->namespace,$namespace),"$label object $i: namespace") 
-    #   or return 0;
-    # NG 13-06-13: for $i==2 (type_003_master), query is UNION over columns from 2 MapTables
-    #              as of perl 5.18, order of MapTables not guaranteed
-    # if ($i!=2) {
-    #   report_fail(scrunched_eq($actual->query,$query),"$label object $i: query") or return 0;
-    # } else {
-    #   my @actual=split(/\s+UNION\s+/,$actual->query);
-    #   $query=~s/^\s+|\s+$//mg;
-    #   my @correct=split(/\s+UNION\s+/,$query);
-    #   report_fail(cmp_set_quietly(\@actual,\@correct),"$label object $i: query") or return 0;
-    # }
-    report_fail(as_bool($actual->view)==$view,"$label object $i: view") or return 0;
     report_fail(as_bool($actual->implicit)==$implicit,"$label object $i: implicit") or return 0;
     if ($mature) {
+      report_fail(as_bool($actual->query)==$query,"$label object $i: query") or return 0;
+      report_fail(as_bool($actual->view)==$view,"$label object $i: view") or return 0;
       check_object_basics($actual->babel,'Data::Babel','test',"$label object $i babel");
       check_object_basics($actual->idtype,'Data::Babel::IdType',
 			  "type_$suffix","$label object $i idtype");
@@ -961,24 +876,11 @@ sub check_handcrafted_maptables {
     my $suffix1='00'.($i+2);
     my $name="maptable_$suffix";
     my $id="maptable:$name";
-#     my $inputs="MainData/table_$suffix";
-#     my $query=<<QUERY
-# SELECT col_$suffix AS type_$suffix, col_$suffix1 AS type_$suffix1
-# FROM   table_$suffix
-# QUERY
-#       ;
     report_fail(UNIVERSAL::isa($actual,$class),"$label object $i: class") or return 0;
     report_fail($actual->name eq $name,"$label object $i: name") or return 0;
     report_fail($actual->id eq $id,"$label object $i: id") or return 0;
     # NG 13-06-12: compare as sets 'cuz perl 5.18 no longer preserves order
-    # report_fail(scrunched_eq($actual->inputs,$inputs),"$label object $i: inputs") or return 0;
-    # report_fail(cmp_set_quietly(as_list($actual->inputs),as_list($inputs)),
-    # 		"$label object $i: inputs")
-    #   or return 0;
-    # report_fail(scrunched_eq($actual->namespace,"ConnectDots"),"$label object $i: namespace") 
-    #   or return 0;
-    # report_fail(scrunched_eq($actual->query,$query),"$label object $i: query") or return 0;
-    if ($mature) {
+     if ($mature) {
       check_object_basics($actual->babel,'Data::Babel','test',"$label object $i babel");
       check_objects_basics($actual->idtypes,'Data::Babel::IdType',
 			  ["type_$suffix","type_$suffix1"],"$label object $i idtypes");
@@ -1122,7 +1024,43 @@ sub pgraph {
   }
   close OUT if $file;
 }
-
+# # NG 13-10-05 print table dumps to track down FAILs seen by 
+# #              David Cantrell (reports 34101829, 34102877)
+# sub diag_rows {
+#   my($rows)=@_;
+#   my @diag='----------';
+#   for my $row (@$rows) {
+#     # replace undef by NULL
+#     push(@diag,join("\t",map {defined $_? $_: 'NULL'} @$row));
+#   }
+#   push(@diag,'----------');
+#   my $diag=join("\n",@diag);
+#   diag($diag);
+#   return 1;
+# }
+# # NG 13-09-15: print table dumps to track down FAILs seen by 
+# #              David Cantrell (reports 34101829, 34102877)
+# sub diag_table {
+#   my($table,@cols)=@_;
+#   my $cols=@cols? join(',',@cols): '*';
+#   my $sth=$dbh->prepare(qq(SELECT $cols FROM $table)) or goto FAIL;
+#   $sth->execute() or goto FAIL;
+#   my @cols=@{$sth->{NAME}};
+#   my $rows=$sth->fetchall_arrayref() or goto FAIL;
+#   my @diag=("table $table:",join("\t",@cols));
+#   for my $row (@$rows) {
+#     # replace undef by NULL
+#     push(@diag,join("\t",map {defined $_? $_: 'NULL'} @$row));
+#   }
+#   push(@diag,'----------');
+#   my $diag=join("\n",@diag);
+#   diag($diag);
+#   return 1;
+#  FAIL:
+#   fail("dump table $table");
+#   diag("While trying to dump table $table for diagnostic purposes, we got the following DBI error message\n".DBI->errstr);
+#   return 0;
+# }
 1;
 
 package t::FullOuterJoinTable;

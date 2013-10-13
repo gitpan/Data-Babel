@@ -73,28 +73,11 @@ for my $m (1..3) {
   my @x_ids=map {"x$_"} (1..$m);
   for my $n (1..3) {
     for my $x_id (@x_ids) {
-      # NG 13-09-17: TODO - this should probably be
-      #              my @ids=map {"$m-$_ $x_id"} (1..$n);
-      #              change after tracking down Cantrell bug
+      # NG 13-10-13: line below creates list of identical ids. 
+      #               probably a copy-and-paste-o but what the heck...
       my @ids=map {"$m-$n $x_id"} (1..$n);
-      # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-      #             failing on all but 1st time through inner loop
-      #             failing in filter (2nd) test in doit; perhaps input_ids is stale...
-      diag("---------- doit ----------\n");
-      diag('@ids='.join(', ',@ids),"\n");
       doit(\@ids,$n,__FILE__,__LINE__);
-      # NG 13-09-17: this trap caught nothing...
-      # doit(\@ids,$n,__FILE__,__LINE__) or do {
-      # 	# NG 13-09-15: print detailed diagnostic info to track down FAILs seen by 
-      # 	#              David Cantrell (reports 34101829, 34102877)
-      # 	diag_table('ur');
-      # 	diag_table('maptable');
-      # 	diag_table('type_0_master');
-      # 	diag_table('type_1_master');
-      # 	goto DONE;
-      # }
     }}}
-# DONE:
 done_testing();
 
 sub doit {
@@ -112,11 +95,6 @@ sub doit {
   cmp_table($actual,$correct,"input $label",$file,$line);
 
   # use ids for filter
-  # NG 13-09-17: try #2. print detailed diagnostic info to track down Cantrell FAILs
-  #             failing on this test on all but 1st time through inner loop in main
-  #             theory: input_ids (should be undef) is actually []
-  our $DEBUG=1;
-
   my $correct=
     select_ur(babel=>$babel,
 	      input_idtype=>'type_1',filters=>{type_0=>$ids},output_idtypes=>[qw(type_0 type_1)]);
@@ -126,29 +104,4 @@ sub doit {
   my $actual=$babel->translate
     (input_idtype=>'type_1',filters=>{type_0=>$ids},output_idtypes=>[qw(type_0 type_1)]);
   cmp_table($actual,$correct,"filter $label",$file,$line);
-
-  our $DEBUG=0;
-}
-# NG 13-09-15: print table dumps to track down FAILs seen by 
-#              David Cantrell (reports 34101829, 34102877)
-sub diag_table {
-  my($table,@cols)=@_;
-  my $cols=@cols? join(',',@cols): '*';
-  my $sth=$dbh->prepare(qq(SELECT $cols FROM $table)) or goto FAIL;
-  $sth->execute() or goto FAIL;
-  my @cols=@{$sth->{NAME}};
-  my $rows=$sth->fetchall_arrayref() or goto FAIL;
-  my @diag=("table $table:",join("\t",@cols));
-  for my $row (@$rows) {
-    # replace undef by NULL
-    push(@diag,join("\t",map {defined $_? $_: 'NULL'} @$row));
-  }
-  push(@diag,'----------');
-  my $diag=join("\n",@diag);
-  diag($diag);
-  return 1;
- FAIL:
-  fail("dump table $table");
-  diag("While trying to dump table $table for diagnostic purposes, we got the following DBI error message\n".DBI->errstr);
-  return 0;
 }

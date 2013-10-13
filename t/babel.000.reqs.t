@@ -64,7 +64,8 @@ DIAG
   1;
 }
 
-# check whether MySQl test database is accessible
+# check whether MySQL test database is accessible
+# NG 13-10-13: check for MySQL duplicate removal bug
 sub check_mysql {
   my($test_db)=@_;
   # make sure we can talk to MySQL
@@ -75,6 +76,16 @@ sub check_mysql {
   $errstr=$@, goto FAIL if $@;
   goto FAIL unless $dbh;
 
+  # NG 13-09-15: print MySQL version to help track down subtle FAILs
+  my $version=$dbh->selectrow_arrayref(qq(SELECT version())) or fail('get MySQL version');
+  if ($version) {
+    if (scalar(@$version)==1) {
+      diag('MySQL version ',$version->[0]);
+    } else {
+      fail('get MySQL version returned row with wrong nuber of columns. expected 1, got '.
+	   scalar(@$version));
+    }
+  }
   # try to create database if necessary, then use it
   # don't worry about create-errors: may be able to use even if can't create
   $dbh->do(qq(CREATE DATABASE IF NOT EXISTS $test_db));
@@ -101,16 +112,30 @@ sub check_mysql {
   $dbh->do(qq(DELETE FROM test_table WHERE xxx=123)) or goto FAIL;
   $dbh->do(qq(DROP VIEW IF EXISTS test_view)) or goto FAIL;
   $dbh->do(qq(DROP TABLE IF EXISTS test_table)) or goto FAIL;
-  # NG 13-09-15: print MySQL version to help track down subtle FAILs
-  my $version=$dbh->selectrow_arrayref(qq(SELECT version())) or fail('get MySQL version');
-  if ($version) {
-    if (scalar(@$version)==1) {
-      diag('MySQL version ',$version->[0]);
-    } else {
-      fail('get MySQL version returned row with wrong nuber of columns. expected 1, got '.
-	   scalar(@$version));
-    }
+
+  # NG 13-10-13: check for MySQL duplicate removal bug
+  $dbh->do(qq(CREATE TABLE test_table(A VARCHAR(255),B VARCHAR(255)))) or goto FAIL;
+  $dbh->do(qq(INSERT INTO test_table(A,B) VALUES ('a','b1'),('a','b2'))) or goto FAIL;
+  my($count)=$dbh->selectrow_array(qq(SELECT COUNT(*) FROM test_table)) or goto FAIL;
+  if ($count!=2) {
+    $errstr="After inserting 2 rows into test_table,\nSELECT COUNT(*) found $count rows (should be 2)";
+    goto FAIL2;
   }
+  my $rows=$dbh->selectall_arrayref(qq(SELECT DISTINCT A,B FROM test_table))  or goto FAIL;
+  if (@$rows!=2) {
+    my $count=@$rows;
+    $errstr="After inserting 2 rows into test_table,\nSELECT DISTINCT all columns got $count rows (should be 2)\n";
+    $errstr.=diag_rows($rows) if $count>0;
+    goto FAIL2;
+  } 
+  my $rows=$dbh->selectall_arrayref(qq(SELECT DISTINCT A,A,B FROM test_table))  or goto FAIL;
+  if (@$rows!=2) {
+    my $count=@$rows;
+    $errstr="After inserting 2 rows into test_table,\nSELECT DISTINCT with repeated column got $count rows (should be 2)\n";
+    $errstr.=diag_rows($rows) if $count>0;
+    goto FAIL2;
+  } 
+
   # since we made it here, we can do everything!
   return 1;
  FAIL:
@@ -133,13 +158,43 @@ DIAG
     ;
   diag($diag);
   print "pragma +stop_testing\n";
+  undef;
+
+ FAIL2:
+  $errstr or $errstr=DBI->errstr;
+  my $diag=<<DIAG
+
+
+Some versions of MySQL have a bug in dupiclate removal (SELECT DISTINCT) with
+repeated output columns. This bug is present in MySQL 5.0.32, and fixed in or 
+before MySQL 5.0.86. 
+
+When checking for this bug, the test driver got the following error message:
+
+$errstr
+
+DIAG
+    ;
+  diag($diag);
+  print "pragma +stop_testing\n";
+  undef;
+
 }
-
-
 
 sub report_fail {
   my($diag)=@_;
   diag($diag);
   print "pragma +stop_testing\n";
   undef;
+}
+sub diag_rows {
+  my($rows)=@_;
+  my @diag='----------';
+  for my $row (@$rows) {
+    # replace undef by NULL
+    push(@diag,join("\t",map {defined $_? $_: 'NULL'} @$row));
+  }
+  push(@diag,'----------');
+  my $diag=join("\n",@diag);
+  $diag;
 }
