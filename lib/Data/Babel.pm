@@ -1,5 +1,5 @@
 package Data::Babel;
-our $VERSION='1.13_07';
+our $VERSION='1.13';
 $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #################################################################################
 #
@@ -17,14 +17,16 @@ $VERSION=eval $VERSION;         # I think this is the accepted idiom..
 #
 #################################################################################
 use strict;
-use Class::AutoClass;
 use Carp;
-use Graph::Undirected;
+use Class::AutoClass;
 use Graph::Directed;
+use Graph::Undirected;
+use Hash::AutoHash::Args;
 use List::MoreUtils qw(uniq none);
 use List::Util qw(min);
-use Hash::AutoHash::Args;
+use Scalar::Util qw(blessed);
 use Data::Babel::Config;
+use Data::Babel::Filter;
 use Data::Babel::IdType;
 use Data::Babel::Master;
 use Data::Babel::MapTable;
@@ -253,16 +255,43 @@ sub generate_query {
   my $input_ids=$args->input_ids;
   $input_ids=[$input_ids] if defined $input_ids && !ref $input_ids;
   
-  my $filters=$args->filters;
-  # make sure all filter keys are names and values undef or ARRAYS - simplifies later code
-  $filters=new Data::Babel::HAH_MultiValued $filters;
-  my @filter_keys=keys %$filters;
-  my @filter_idtypes=map {$self->_2idtype($_)} @filter_keys;
-  # my @filter_names=map {$_->name} @filter_idtypes;
-  my @filter_names=map {_generate_colname($_)} @filter_idtypes;
-  $filters=new Data::Babel::HAH_MultiValued
-    (map {$filter_names[$_]=>$filters->{$filter_keys[$_]}} (0..$#filter_keys));
-
+  # @conds holds WHERE clauses for all parts of query. paren-wrapping done at end
+  # @filter_idtypes holds idtypes extracted from filters if any
+  my(@conds,@filter_idtypes);
+  # my $filters=$args->filters;
+  if (_not_empty_filters(my $filters=$args->filters)) {
+    my @filters;			# list of Filter objects
+    # deal with special top level filters: scalar, SCALAR ref, Filter object
+    unless ('HASH' eq ref($filters) || 'ARRAY' eq ref($filters)) {
+      @filters=$self->special_filters($filters);
+    } else {
+      # general case
+      # Make sure all filter keys are names and values are undef or ARRAYS
+      # Note that HAH_MultiValued deals with repeated keys but
+      #   not case where name and object for same idtype appear...
+      # convert HASH to ARRAY. easier to work with
+      $filters=[%$filters] if 'HASH' eq ref $filters;
+      for (my $i=0; $i<@$filters; $i+=2) {
+	my $filter_idtype=$filters->[$i]; # can be name or object
+	next unless ref($filter_idtype) || $filter_idtype=~/\S/; # skip empty key
+	my $filter_name=$self->_2idtype_name($filter_idtype);
+	$filters->[$i]=$filter_name;
+      }
+      # convert ARRAY to HASH
+      $filters=new Data::Babel::HAH_MultiValued $filters;
+      while (my($filter_idtype,$conditions)=each %$filters) {
+	if ($filter_idtype!~/\S/) {
+	  # empty key is special case. same as passing conditions to 'filters' itself
+	  push(@filters,$self->special_filters(@$conditions));
+	} else {
+	  push(@filters,
+	       new Data::Babel::Filter(babel=>$self,filter_idtype=>$filter_idtype,
+				       conditions=>$conditions));
+	}}}
+    push(@conds,map {$_->sql} @filters);
+    @filter_idtypes=uniq map {@{$_->filter_idtypes}} @filters;
+  }
+    
   my @output_idtypes=map {$self->_2idtype($_)} @{$args->output_idtypes};
   my @output_names=map {$_->name} @output_idtypes;
   my @idtypes=uniq($input_idtype,@output_idtypes,@filter_idtypes);
@@ -308,40 +337,24 @@ sub generate_query {
   #              since most strings convert to 0, this means that an input_id of 0
   #              matches almost everything
   # NG 11-01-21: add 'translate all'
-  my @conds;			# WHERE clauses
+  # my @conds;			# WHERE clauses
   if (defined $input_ids) {
     my @input_ids=map {$dbh->quote($_)} @$input_ids;
     my $cond=@input_ids?
       " $input_name IN ".'('.join(', ',@input_ids).')': ' FALSE';
     push(@conds,$cond);
   }
-  # NG 12-08-24: support filters
-  # NG 12-09-21: handle undefs
-  for my $filter_name (@filter_names) {
-    my $cond;
-    my $filter_ids=$filters->$filter_name;
-    if (!defined $filter_ids) {
-      $cond="$filter_name IS NOT NULL";
-    } elsif (@$filter_ids) {
-      my @cond;
-      my @defined_ids=map {$dbh->quote($_)} grep {defined $_} @$filter_ids;
-      push(@cond," $filter_name IN ".'('.join(', ',@defined_ids).')') if @defined_ids;
-      push(@cond,"$filter_name IS NULL") if @defined_ids!=@$filter_ids;
-      $cond=join(' OR ',@cond);
-      $cond="($cond)" if @cond>1;
-    } else {			# it's filter=>undef[]
-      $cond="FALSE";
-    }
-    push(@conds,$cond);
-  }
   # NG 10-11-10: skip rows whose output columns are all NULL
   # NG 12-11-23: but keep these rows if validating
   if (@output_names && !$args->validate)  {
     my $sql_not_null=join(' OR ',map {"$_ IS NOT NULL"} @output_names);
-    push(@conds,"($sql_not_null)");
+    # NG 13-10-17: move paren-wrapping down so all clauses handled in one place
+    # push(@conds,"($sql_not_null)");
+    push(@conds,$sql_not_null);
   }
   my $sql="SELECT DISTINCT $columns_sql FROM $join_sql";
-  $sql.=' WHERE '.join(' AND ',@conds) if @conds;
+  # NG 13-10-17: do paren-wrapping here so all clauses handled in one place
+  $sql.=' WHERE '.join(' AND ',map {"($_)"} @conds) if @conds;
 
   # NG 10-11-08: support limit. based on DM's change
   # NG 12-11-23: if validating, have to do limit in code...
@@ -355,7 +368,7 @@ sub generate_query {
   # NG 12-11-23: if validating, have to do count in code...
   # NG 13-06-20: with pdup removal, have to do count in code. kinda makes count pointless....
   $sql=qq(SELECT COUNT(*) FROM ($sql) AS T)
-    if $args->count && $args->keep_pdups && !$args->validate;
+      if $args->count && $args->keep_pdups && !$args->validate;
   
   # NG 13-06-19: added $query_paths,$input_name,@output_names to return. 
   #              needed for pdup elimination
@@ -363,6 +376,29 @@ sub generate_query {
   #              of results table
   # $sql;
   ($sql,$query_paths,$columns);
+}
+# handle special filters
+sub special_filters {
+  my($self,$conditions)=@_;
+  my $filter=
+    (!ref $conditions)?
+      new Data::Babel::Filter(babel=>$self,prepend_idtype=>undef,conditions=>\$conditions):
+	(('SCALAR' eq ref $conditions)?
+	  new Data::Babel::Filter(babel=>$self,prepend_idtype=>undef,conditions=>$conditions):
+	    ((blessed($conditions) && $conditions->isa('Data::Babel::Filter'))? $conditions:
+	      confess "Invalid special 'conditions' value: is ".ref($conditions).
+	       ", should be scalar, SCALAR reference, or Data::Babel::Filter object"));
+  $filter;
+}
+# deal with various forms of empty filters
+sub _not_empty_filters {
+  my $filters=shift;
+  return 0 if !defined $filters;                            # undef
+  return 0 if !ref($filters) && $filters!~/\S/;	            # empty string
+  return 0 if 'SCALAR' eq ref($filters) && $$filters!~/\S/; # empty string ref
+  return 0 if 'ARRAY' eq ref($filters) && !@$filters;       # empty ARRAY
+  return 0 if 'HASH' eq ref($filters) && !%$filters;        # empty HASH
+  return 1;
 }
 # input is IdType object. handles history
 sub _generate_colname {
@@ -822,13 +858,13 @@ sub _name2object {
 sub _2idtype {
   my $self=shift;
   if (ref $_[0]) {
-    confess "Invalid idtype $_[0]" unless $_[0]->isa('Data::Babel::IdType');
+    confess "Invalid idtype $_[0]" unless blessed($_[0]) && $_[0]->isa('Data::Babel::IdType');
     return $_[0];
   }
   # else may be name or stringified ref
   unless ($_[0]=~/^Data::Babel::IdType=HASH\(0x\w+\)$/) {
     my $idtype=$self->name2idtype($_[0]);
-    confess "Invalid idtype $_[0]" unless ref($idtype) && $idtype->isa('Data::Babel::IdType');
+    confess "Invalid idtype $_[0]" unless $idtype;
     return $idtype;
   }
   # code to convert stringified ref adapted from http://stackoverflow.com/questions/1671281/how-can-i-convert-the-stringified-version-of-array-reference-to-actual-array-ref?rq=1
@@ -839,27 +875,26 @@ sub _2idtype {
   confess "Invalid filter idtype $_[0]" unless $idtype=~/^Data::Babel::IdType=HASH\(0x\w+\)$/;
   $idtype;
 }
-# _2idtype_name NOT USED
-# sub _2idtype_name {
-#   my $self=shift;
-#   if (ref $_[0]) {
-#     confess "Invalid idtype $_[0]" unless UNIVERSAL::isa($_[0],'Data::Babel::IdType');
-#     return $_[0]->name;
-#   }
-#   # else may be name or stringified ref
-#   unless ($_[0]=~/^Data::Babel::IdType=HASH\(0x\w+\)$/) {
-#     my $idtype=$self->name2idtype($_[0]);
-#     confess "Invalid idtype $_[0]" unless UNIVERSAL::isa($idtype,'Data::Babel::IdType');
-#     return $_[0];
-#   }
-#   # code to convert stringified ref adapted from http://stackoverflow.com/questions/1671281/how-can-i-convert-the-stringified-version-of-array-reference-to-actual-array-ref?rq=1
-#   # CAUTION: will segfault if bad string passed in!
-#   require B;
-#   my($hexaddr)=$_[0]=~/.*(0x\w+)/;
-#   my $idtype=bless(\(0+hex $hexaddr), "B::AV")->object_2svref;
-#   confess "Invalid filter idtype $_[0]" unless $idtype=~/^Data::Babel::IdType=HASH\(0x\w+\)$/;
-#   $idtype->name;
-# }
+sub _2idtype_name {
+  my $self=shift;
+  if (ref $_[0]) {
+    confess "Invalid idtype $_[0]" unless blessed($_[0]) && $_[0]->isa('Data::Babel::IdType');
+    return $_[0]->name;
+  }
+  # else may be name or stringified ref
+  unless ($_[0]=~/^Data::Babel::IdType=HASH\(0x\w+\)$/) {
+    my $idtype=$self->name2idtype($_[0]);
+    confess "Invalid idtype $_[0]" unless $idtype;
+    return $_[0];
+  }
+  # code to convert stringified ref adapted from http://stackoverflow.com/questions/1671281/how-can-i-convert-the-stringified-version-of-array-reference-to-actual-array-ref?rq=1
+  # CAUTION: will segfault if bad string passed in!
+  require B;
+  my($hexaddr)=$_[0]=~/.*(0x\w+)/;
+  my $idtype=bless(\(0+hex $hexaddr), "B::AV")->object_2svref;
+  confess "Invalid filter idtype $_[0]" unless $idtype=~/^Data::Babel::IdType=HASH\(0x\w+\)$/;
+  $idtype->name;
+}
 
 ########################################
 # TODO: move these functions to some Util
@@ -1413,7 +1448,7 @@ As noted in L<Notes on translate>, comparisons are B<case insensitive>.
 
 If a filter condition is undef, all ids of the given type are
 acceptable.  This limits the output to rows for which the filter type
-is not NULL. This usage is analogous to what it means for "indut_ids"
+is not NULL. This usage is analogous to what it means for "input_ids"
 to be undef. For example,
 
   $babel->translate(input_idtype=>'gene_entrez',
@@ -1436,10 +1471,17 @@ appear in KEGG pathway 4610 or appear in no KEGG pathway.
 It may seem strange for undef to have opposite meanings depending on
 context, but it is "the right thing" in practice.
 
+An empty SQL fragment, ie, \"", means FALSE.  If that's the only
+condition for a given type, the result will be empty. If there are
+other conditions, eg, we have an ARRAY of conditions, the empty SQL
+fragment has no effect, because an ARRAY represents the OR of its
+elements and ORing FALSE to anything is a nop.
+
 =head4 Filter conditions
 
-Each idtype=>condition pair generates a L<Data::Babel::Filter|"HELPER CLASS Data::Babel::Filter">
-object. See L<"Details on conditions">. In brief, a condition can be
+Each idtype=>condition pair generates a L<Data::Babel::Filter|"HELPER
+CLASS Data::Babel::Filter"> object. See L<"Details on conditions">. In
+brief, a condition can be
 
 =over 2
 
@@ -1447,7 +1489,8 @@ object. See L<"Details on conditions">. In brief, a condition can be
 
 =item * a single SQL fragment, eg, chip_affy=>\"LIKE 'hgu133a'". The '\' before the first quote generates a reference to the string, which is what tells the software you want a SQL fragment instead of an id.
 
-=item * Data::Babel::Filter object. Included for completeness.
+=item * Data::Babel::Filter object. Not terribly useful in practice
+but included for completeness.
 
 =item * undef, eg, pathway_kegg_id=>undef. This means that all ids of
 the filter idtype are acceptable and only excludes rows for which the
@@ -1535,6 +1578,11 @@ the value of the "filters" argument, eg,
   filters=>"(:chip_affy LIKE 'hgu%' AND :chip_affy != 'hgu133b') AND
               (:pathway_kegg_id IS NOT NULL OR :pathway_kegg_id = 4610)"
 
+An empty string or a reference to an empty string means "no
+filter". This is the same as any other "empty" argument to
+"filters". Bear in mind that an empty SQL fragment, ie, \"", in any
+other context means FALSE.
+
 =back
 
 It should be clear that all the filter syntax we've presented up to
@@ -1571,7 +1619,6 @@ It is probably an error for the HASH to contain duplicate idtypes, because the l
 
   idtype=>conditions
   ''=>conditions
-  Data::Babel::Filter object
 
 For example,
 
@@ -1580,8 +1627,7 @@ For example,
     chip_affy=>\"LIKE 'mgu%'",
     chip_affy=>["!= 'hgu133b'],
     pathway_kegg_id=>[4610,undef],
-    ''=>\":gene_symbol LIKE 'casp%' OR :gene_description LIKE '%apoptosis%'",
-    new Data::Babel::Filter(conditions=>":organism_name != 'rat'")]
+    ''=>\":gene_symbol LIKE 'casp%' OR :gene_description LIKE '%apoptosis%'"]
 
 It is fine for the ARRAY to contain duplicate idtypes, in which case
 their conditions are merged.
@@ -2158,6 +2204,22 @@ single SQL IN clause. For example, if "filter_idtye" is "gene_symbol"
 and "conditions" is ['Htt','Casp6','Ins2'], we generate
 
   gene_symbol IN ('Htt','Casp6','Ins2')
+
+The "conditions" argument can be "empty" in several ways.
+
+=over 2
+
+=item * empty id. This is completely normal and generates SQL to match
+an empty string.
+
+=item * empty SQL fragment, typically encoded as a reference to an
+empty string, ie, \''.  This generates the SQL FALSE. When used in an
+ARRAY, this has no effect, because an ARRAY represents the OR of its
+elements and ORing FALSE to anything is a nop.
+
+=item * empty ARRAY. Generates FALSE.
+
+=back
 
 =head3 Why we need embedded IdType markers
 

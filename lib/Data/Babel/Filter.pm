@@ -145,7 +145,9 @@ sub gen_sql {
   my $colname=_generate_colname($filter_idtype);
   for my $fragment (@fragments) {
     $fragment=~s/^\s+||\s+$//g;	# strip leading and trailing whitespace
-    next unless length $fragment;
+    # NG 13-10-17: empty SQL means FALSE
+    # next unless length $fragment;
+    push(@sql,'FALSE'),next unless length $fragment;
     if ($fragment!~/\Q$embedded_idtype_marker\E/) {
       # easy case - $fragment has no embedded_idtype_marker
       # prepend_idtype if allowed, and possible

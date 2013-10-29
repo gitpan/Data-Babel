@@ -13,7 +13,7 @@ our @ISA=qw(Exporter);
 
 our @EXPORT=
   (@t::util::EXPORT,
-   qw(check_object_basics sort_objects power_subsets cross_product vary_case uniq_rows
+   qw(check_object_basics sort_objects power_subsets cross_product vary_case uniq_rows sql_in
       prep_tabledata load_maptable load_master load_ur select_ur select_ur_sanity cleanup_db
       check_database_sanity check_maptables_sanity check_masters_sanity 
       check_handcrafted_idtypes check_handcrafted_masters check_handcrafted_maptables
@@ -305,11 +305,12 @@ sub load_ur {
 # NG 12-11-20: fixed input column for histories: 0th column is '_X_' if input has history
 # NG 12-11-23: added validate
 # NG 13-06-10: changed to do case insensitive comparisons, eg, searching for 'htt' as gene_symbol
+# NG 13-10-14: added query
 # select data from ur (will actually work for any table)
 sub select_ur {
   my $args=new Hash::AutoHash::Args(@_);
-  my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters,$validate,$nocase)=
-    @$args{qw(babel urname input_idtype input_ids output_idtypes filters validate nocase)};
+  my($babel,$urname,$input_idtype,$input_ids,$output_idtypes,$filters,$query,$validate,$nocase)=
+    @$args{qw(babel urname input_idtype input_ids output_idtypes filters query validate nocase)};
   confess "input_idtype must be set. call select_ur_sanity instead" unless $input_idtype;
   # confess "Only one of inputs_ids or input_ids_all may be set" if $input_ids && $input_ids_all;
   $urname or $urname=$args->tablename || 'ur';
@@ -342,6 +343,9 @@ sub select_ur {
   # hang onto valid input ids if doing validate
   # NG 13-06-10: added 'lc' for case insensitive comparisons
   my %valid=map {lc $_->[0]=>1} @$table if $validate;
+  # NG 13-10-14: added query. have to do query after validate.
+  $sql.=" AND ($query)" if $query;
+  my $table=$dbh->selectall_arrayref($sql);
 
   # now do filtering. columns are input, filters, then outputs, finally history columns
   my %name2idx=map {$columns[$_]=>$_} 0..$#columns;
@@ -471,6 +475,25 @@ sub grep_rows {
 sub sort_rows {
   sort {@$a<=>@$b || first {$_} map {$a->[$_] cmp $b->[$_]} 0..$#$a} @_;
 }
+# make SQL IN clauses for test queries. 
+# arguments are 1) single value, 2) ARRAY of values, or 3) column=>values pairs
+sub sql_in {
+  my $sql;
+  if (@_==1) {
+    my @values=flatten(shift);
+    $sql='IN ('.join(',',map {"'$_'"} @values).')';
+  } else {
+    my %args=@_;
+    my @sql;
+    while (my($column,$values)=each %args) {
+      my @values=flatten($values);
+      push(@sql,"$column IN (".join(',',map {"'$_'"} @values).')');
+    }
+    $sql=join(' AND ',@sql);
+  }
+  $sql;
+}
+
 # process filters ARRAY - a bit hacky 'cuz filter=>undef not same as filter=>[undef]
 sub filters_array {
   my @filters=@{$_[0]};

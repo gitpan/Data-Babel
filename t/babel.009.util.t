@@ -6,6 +6,7 @@ use t::lib;
 use t::utilBabel;
 use Carp;
 use File::Spec;
+# use Hash::AutoHash::Args qw(autoargs_delete);
 use List::MoreUtils qw(uniq);
 use List::Util qw(min max);
 use Test::More;
@@ -205,6 +206,85 @@ check_select_ur
 #    filters=>{$babel->name2idtype('type_004')=>'type_004/a_111'},
 #    output_idtypes=>[map {$babel->name2idtype($_)} qw(type_002 type_003 type_004)]);
 
+# NG 13-10-14: added 'validate' + 'filter' to make query tests more comprehensive
+check_select_ur
+  ('basics_validate_filter','scalar',
+   input_idtype=>'type_001',
+   input_ids=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_111)],
+   filters=>{type_004=>'type_004/a_111'},
+   validate=>1,output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('validate_filter_undef',undef,
+   input_idtype=>'type_001',filters=>{type_003=>undef},
+   validate=>1,output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('validate_filter_arrayundef',undef,
+   input_idtype=>'type_001',filters=>{type_003=>[undef]},
+   validate=>1,output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('validate_filter_arrayundef_111','ARRAY',
+   input_idtype=>'type_001',filters=>[type_003=>[undef,'type_003/a_111']],
+   validate=>1,output_idtypes=>[qw(type_002 type_003 type_004)]);
+
+# NG 13-10-14: added query
+check_select_ur
+  ('basics','query',
+   input_idtype=>'type_001',
+   query=>sql_in(type_001=>[qw(type_001/a_000 type_001/a_001 type_001/a_111)]),
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('basics_all','query',
+   input_idtype=>'type_001',
+   query=>sql_in
+   (type_001=>[qw(type_001/a_000 type_001/a_001 type_001/a_010 type_001/a_011 
+		  type_001/a_100 type_001/a_101 type_001/a_110 type_001/a_111)]),
+    output_idtypes=>[qw(type_002 type_003 type_004)]);
+
+check_select_ur
+  ('basics_filter','query',
+   input_idtype=>'type_001',
+   query=>sql_in
+   (type_001=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_111)],
+    type_004=>'type_004/a_111'),
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('filter_undef','query',
+   input_idtype=>'type_001',
+   query=>'type_003 IS NOT NULL',
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('filter_arrayundef','query',
+   input_idtype=>'type_001',
+   query=>'type_003 IS NULL',
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('filter_arrayundef_111','query',
+   input_idtype=>'type_001',
+   query=>'type_003 IS NULL OR type_003="type_003/a_111"',
+   output_idtypes=>[qw(type_002 type_003 type_004)]);
+
+check_select_ur
+  ('basics_validate_filter','query',
+   input_idtype=>'type_001',
+   input_ids=>[qw(type_001/invalid type_001/a_000 type_001/a_001 type_001/a_111)],
+   query=>'type_004="type_004/a_111"',
+   validate=>1,output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('validate_filter_undef','query',
+   input_idtype=>'type_001',
+   query=>'type_003 IS NOT NULL',
+   validate=>1,output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('validate_filter_arrayundef','query',
+   input_idtype=>'type_001',
+   query=>'type_003 IS NULL',
+   validate=>1,output_idtypes=>[qw(type_002 type_003 type_004)]);
+check_select_ur
+  ('validate_filter_arrayundef_111','query',
+   input_idtype=>'type_001',
+   query=>'type_003 IS NULL OR type_003="type_003/a_111"',
+   validate=>1,output_idtypes=>[qw(type_002 type_003 type_004)]);
+
 done_testing();
 
 sub check_prep_tabledata {
@@ -228,9 +308,41 @@ sub check_table {
 sub check_select_ur {
   my($key,$label,@args)=@_;
   my $correct=prep_tabledata($data->$key->data);
+  $label="select_ur $key".(length $label? " $label":'');
   my $actual=select_ur(babel=>$babel,@args);
-  cmp_table($actual,$correct,"select_ur $key".(length $label? " $label":''));
+  cmp_table($actual,$correct,$label);
 }
+# # NG 13-10-14: added query
+# sub check_select_ur {
+#   my($key,$label,@args)=@_;
+#   my $correct=prep_tabledata($data->$key->data);
+#   $label="select_ur $key".(length $label? " $label":'');
+#   my $args=new Hash::AutoHash::Args @args;
+#   my $query=$args->query;
+#   autoargs_delete($args,qw(query));
+#   @args=%$args;
+#   my $actual=select_ur(babel=>$babel,@args);
+#   cmp_table_quietly($actual,$correct,$label) or return 0;
+#   if ($query) {
+#     # remove filters and put back query
+#     autoargs_delete($args,qw(filters));
+#     $args->query($query);
+#     @args=%$args;
+#     my $actual=select_ur(babel=>$babel,@args);
+#     cmp_table_quietly($actual,$correct,"$label QUERY") or return 0;
+#   }
+#   pass($label);
+# }
+# # make SQL IN clause. arguments are column=>values pairs
+# sub sql_in {
+#   my %args=@_;
+#   my @sql;
+#   while (my($column,$values)=each %args) {
+#     my @values=flatten($values);
+#     push(@sql,"$column IN (".join(',',map {"'$_'"} @values).')');
+#   }
+#   join(' AND ',@sql);
+# }
 
 sub width {
   my($table)=@_;

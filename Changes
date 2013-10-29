@@ -1,59 +1,32 @@
 Revision history for Data-Babel
 
-1.13_07 2013-10-13
+1.13	2013-10-29
+	New features
+	- Filters can use (almost) arbitrary SQL. Implementation uses new
+	  Data::Babel::Filter objects
+	- 'check_contents' method - checks whether explict Masters contain all
+	  ids in the underlying MapTables
 	Diagnosed FAILs seen by David Cantrell. Caused by MySQL bug in duplicate
 	  removal (SELECT DISTINCT) with repeated output columns. Bug present in
 	  MySQL 5.0.32, fixed in or before 5.0.86
-	Test changes
-	  - Added test for MySQL bug in duplicate removal (SELECT DISTINCT) with 
-	    repeated output column in 000.reqs
-	  - Removed debugging code for FAILs seen by David Cantrell
-
-1.13_06 2013-10-05
-	Still working on David's FAILs
-
-1.13_05 2013-09-29
-	New features
-	- More complex filters for translate and related methods
-	Updated depdendencies
-        Bug fixes
-        - maptables attribute of recycled idtype not reset
-	Still trying to track down FAILs seen by David Cantrell
-	  (reports 34101829, 34102877, 34457224)
-	Test changes
-	- More test cleanup subsequent to fixing of 'implicit masters' bug
-        - Fixed boilerplate & pod tests
-
-
-1.13_04 2013-09-23
-        Bug fixes
-        - Implicit master created in application and passed into Babel
-	  constructor not processed by make_implicit_masters and thus not set up
-	  properly
-	Still trying to track down FAILs seen by David Cantrell
-	  (reports 34101829, 34102877, 34457224)
-	Also includes code and tests for Filter object and code stub for
-	  testing translate with Filter object, but translate not yet ported to
-	  Filter object
-
-1.13_03 2013-09-17
-	Another debugging release to track down FAILs seen by David Cantrell
-	  (reports 34101829, 34102877, 34457224)
-	Also includes documentation for new translate filters
-
-1.13_02 2013-09-15
-	This is a debugging release to track down FAILs seen by David Cantrell
-	  (reports 34101829, 34102877)	
-
-1.13_01 2013-09-02
-	New features
-	- 'check_contents' method - checks whether explict Masters contain all
-	  ids in the underlying MapTables
         Bug fixes
         - 'apostrophe' bug: ID containing apostrophe triggered bug in partial
 	  duplicate removal
+        - Implicit master created in application and passed into Babel
+	  constructor not processed by make_implicit_masters and thus not set up
+	  properly
+        - maptables attribute of recycled idtype not reset
 	Test changes
 	- Added test for schema mechanics
+	- More test cleanup subsequent to fixing of 'implicit masters' bug
+        - Fixed boilerplate & pod tests
+	- Added test for MySQL bug in duplicate removal (SELECT DISTINCT) with 
+	  repeated output column in 000.reqs
+	- Added 'query' arg to select_ur and test cases in 009.util
+	- Added tests for complex filters
+	- Changed 'translate' to use Filter objects
+	- Changed manifest test as in AutoDB, changed MANIFEST.SKIP to not skip
+	  itself, added dependency for Test::CheckManifest
 	Documentation changes
 	- Deprecated obsolete workflow-related attributes and removed them from
 	  examples

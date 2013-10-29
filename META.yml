@@ -5,7 +5,7 @@ author:
 build_requires:
   Carp: 1.2
   Class::AutoClass: 1.55
-  Class::AutoDB: 1.26
+  Class::AutoDB: 1.28
   Clone: 0.35
   Cwd: 3.4
   DBI: 1.628
@@ -28,6 +28,7 @@ build_requires:
   TAP::Formatter::Console: 3.28
   TAP::Harness: 3.28
   TAP::Parser::Aggregator: 3.28
+  Test::CheckManifest: 1.26
   Test::Deep: 0.11
   Test::More: 0.98
   Test::Pod: 1.48
@@ -46,7 +47,7 @@ name: Data-Babel
 provides:
   Data::Babel:
     file: lib/Data/Babel.pm
-    version: 1.13_07
+    version: 1.13
   Data::Babel::Base:
     file: lib/Data/Babel/Base.pm
     version: 0
@@ -101,7 +102,7 @@ requires:
   B::Deparse: 1.04
   Carp: 1.2
   Class::AutoClass: 1.55
-  Class::AutoDB: 1.26
+  Class::AutoDB: 1.28
   Class::Singleton: 1.4
   Config::IniFiles: 2.82
   Cwd: 3.4
@@ -129,4 +130,4 @@ requires:
   XSLoader: 0.16
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.13_07
+version: 1.13

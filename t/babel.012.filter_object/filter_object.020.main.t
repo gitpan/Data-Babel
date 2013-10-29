@@ -19,6 +19,20 @@ for $history (qw(none all even odd)) {
   init($history);
   my($col0,$col1,$col2,$col3)=map {colname($_)} 0..3;
   ## test conditions of increasing complexity
+  ## '' 
+  my $label="empty string - history=$history"; 
+  my $id='';
+  my $qid=$dbh->quote($id);
+  my $correct=qq($col0=$qid);
+  my $ok=test_filter($id,$correct,$label);
+  report_pass($ok,$label);
+
+  ## \''
+  my $label="empty SQL - history=$history"; 
+  my $sql=\'';
+  my $ok=test_filter($sql,qq(FALSE),$label);
+  report_pass($ok,$label);
+  
   ## []
   my $label="empty array - history=$history"; 
   my $id=[];

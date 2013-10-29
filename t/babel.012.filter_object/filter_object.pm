@@ -24,11 +24,11 @@ our @EXPORT=qw($OPTIONS $autodb $babel $dbh $history $filter %ids @ids @qids @op
 our($OPTIONS,%OPTIONS,@OPTIONS,%DEFAULTS,$autodb,$babel,$dbh,$history,$filter,%ids,@ids,@qids,@ops);
 
 %ids=(word=>'word',
-	 number=>123,
-	 phrase=>'two words',
-	 embedded_quote=>q(embedded'quote),
-	 embedded_paren=>q{embedded(paren},
-	 embedded_marker=>q{embedded:marker});
+      number=>123,
+      phrase=>'two words',
+      embedded_quote=>q(embedded'quote),
+      embedded_paren=>q{embedded(paren},
+      embedded_marker=>q{embedded:marker});
 @ids=sort values %ids;
 # @qids defined in init
 @ops=('LIKE','NOT LIKE','=','!=','<','<=','>=','>');
@@ -42,7 +42,7 @@ sub init {
   $history=shift;		# $history is global
   $history='none' unless defined $history;
   $autodb=new Class::AutoDB(database=>'test',create=>1); 
-  isa_ok($autodb,'Class::AutoDB','sanity test - $autodb');
+  isa_ok_quietly($autodb,'Class::AutoDB','sanity test - $autodb');
   $dbh=$autodb->dbh;
   @qids=map {$dbh->quote($_)} @ids;
   cleanup_db($autodb);	# cleanup database from previous test
@@ -54,7 +54,7 @@ sub init {
   my $maptable=new Data::Babel::MapTable(name=>"maptable",idtypes=>\@idtypes);
   $babel=new Data::Babel
     (name=>'test',autodb=>$autodb,idtypes=>\@idtypes,masters=>\@masters,maptables=>[$maptable]);
-  isa_ok($babel,'Data::Babel','sanity test - $babel');
+  isa_ok_quietly($babel,'Data::Babel','sanity test - $babel');
   # setup the database. just creates the tables
   load_maptable($babel,'maptable');
   map {load_master($babel,$_)} @{$babel->masters};

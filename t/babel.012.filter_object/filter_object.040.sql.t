@@ -32,6 +32,18 @@ for $history (qw(none all even odd)) {
   diag('database error message: ',$dbh->errstr) if $dbh->errstr;
 
   ## test conditions of increasing complexity
+  ## '' 
+  my $label="empty string - history=$history"; 
+  my $id='';
+  my $ok=test_sql($id,[],$label);
+  report_pass($ok,$label);
+
+  ## \''
+  my $label="empty SQL - history=$history"; 
+  my $sql=\'';
+  my $ok=test_sql($sql,[],$label);
+  report_pass($ok,$label);
+  
   ## []
   my $label="empty array - history=$history"; 
   my $id=[];
@@ -48,7 +60,7 @@ for $history (qw(none all even odd)) {
   my $ok=1;
   my $label="id - history=$history";
   while (my($label,$id)=each %ids) {
-    my $qid=$dbh->quote($id);
+    # my $qid=$dbh->quote($id);
     $label="id=$label - history=$history";
     $ok&&=test_sql($id,[$id],$label);
   }
@@ -58,7 +70,6 @@ for $history (qw(none all even odd)) {
 
   ## simple SQL
   my $ok=1;
-  my $label="simple SQL - history=$history";
   while (my($label,$id)=each %ids) {
     my $qid=$dbh->quote($id);
     $label="simple SQL - LIKE $label - history=$history";

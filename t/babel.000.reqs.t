@@ -158,7 +158,7 @@ DIAG
     ;
   diag($diag);
   print "pragma +stop_testing\n";
-  undef;
+  return undef;
 
  FAIL2:
   $errstr or $errstr=DBI->errstr;
@@ -177,7 +177,7 @@ DIAG
     ;
   diag($diag);
   print "pragma +stop_testing\n";
-  undef;
+  return undef;
 
 }
 

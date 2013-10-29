@@ -1,9 +1,6 @@
-#!perl
-
 use strict;
 use warnings;
 use Test::More;
+use Test::CheckManifest;
 
-eval "use Test::CheckManifest 0.9";
-plan skip_all => "Test::CheckManifest 0.9 required" if $@;
 ok_manifest();
